@@ -13,9 +13,7 @@ INBOXES_DIR = Path.home() / "inboxes"
 BLOBS_DIR = INBOXES_DIR / ".blobs"
 MAX_BLOB_BYTES = 1_000_000
 
-AUTHORIZED_KEYS = [
-    # "AAAAC3NzaC1lZDI1NTE5AAAA...",
-]
+AUTHORIZED_KEYS = Path("/members").read_text().split()
 
 
 def sync_dir(path):
@@ -64,11 +62,11 @@ def deliver(fingerprint, write_blob):
     return blob_path
 
 
-def put(recipient_fingerprints, member_fingerprints):
-    recipient_fingerprints = list(dict.fromkeys(recipient_fingerprints))
-    if not recipient_fingerprints:
+def put(recipient_keys, member_keys):
+    recipient_keys = list(dict.fromkeys(recipient_keys))
+    if not recipient_keys:
         sys.exit("list at least one recipient")
-    if not set(recipient_fingerprints).issubset(member_fingerprints):
+    if not set(recipient_keys).issubset(member_keys):
         sys.exit("every recipient must be a member")
 
     blob = sys.stdin.buffer.read(MAX_BLOB_BYTES + 1)
@@ -76,8 +74,8 @@ def put(recipient_fingerprints, member_fingerprints):
         sys.exit(f"blob must be 1-{MAX_BLOB_BYTES} bytes")
 
     blob_path = store_blob(blob)
-    for recipient_fingerprint in recipient_fingerprints:
-        deliver(recipient_fingerprint, lambda path: os.link(blob_path, path))
+    for recipient_key in recipient_keys:
+        deliver(fingerprint(recipient_key), lambda path: os.link(blob_path, path))
 
 
 def get(reader_fingerprint, last_seen_sequence):
@@ -132,11 +130,11 @@ def main():
     BLOBS_DIR.mkdir(parents=True, exist_ok=True)
 
     if command == "put":
-        put(command_args, set(members))
+        put(command_args, set(AUTHORIZED_KEYS))
     elif command == "get" and len(command_args) == 1 and command_args[0].isascii() and command_args[0].isdecimal():
         get(caller_fingerprint, int(command_args[0]))
     else:
-        sys.exit("usage: put FINGERPRINT... | get LAST_SEEN_SEQUENCE")
+        sys.exit("usage: put PUBLIC_KEY... | get LAST_SEEN_SEQUENCE")
 
 
 if __name__ == "__main__":

@@ -18,12 +18,33 @@ Build any client on top: a TUI, a desktop app, a bot, a script.
 
 ## Architecture
 
-| Component | What it does                                                       |
-|-----------|--------------------------------------------------------------------|
-| `relay`   | SSH-only mailbox: `put` a blob into inboxes, `get` yours by cursor |
-| `sync`    | Signs, encrypts, sends; fetches, verifies, stores in SQLite        |
-| `tui`     | Example client: reads the database, writes the outbox              |
+| Component | What it does                                                         |
+|-----------|----------------------------------------------------------------------|
+| `relay`   | SSH-only mailbox: `put` a blob into inboxes, `get` yours by sequence |
+| `sync`    | Signs, encrypts, sends; fetches, verifies, stores in SQLite          |
+| `tui`     | Example client: reads the database, writes the outbox                |
 
 ## Relay
 
-Relay is a mailbox where every participant can upload an
+A mailbox over SSH. Each member has an inbox.
+
+### Run
+
+```bash
+docker run -d --name tlx -p 2222:22 \
+  -e TLX_MEMBERS="AAAAC3Nza... AAAAC3Nza..." \
+  -v tlx-ssh:/etc/ssh -v tlx-home:/home/tlx \
+  achempion/tlx-relay
+```
+
+`TLX_MEMBERS` is a space-separated list of public keys. Get a key with `cut -d' ' -f2 ~/.ssh/id_ed25519.pub`.
+
+### Use
+
+```bash
+# deliver a blob to one or more inboxes (include your own key to keep a copy)
+echo hello | ssh -i ~/.ssh/id_ed25519 -p 2222 tlx@203.0.113.10 put AAAAC3Nza... AAAAC3Nza...
+
+# print blobs newer than LAST_SEEN_SEQUENCE, waiting up to 60 s
+ssh -i ~/.ssh/id_ed25519 -p 2222 tlx@203.0.113.10 get 0
+```
