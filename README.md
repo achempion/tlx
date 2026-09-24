@@ -47,11 +47,15 @@ docker run -d --name tlx -p 2222:22 \
 ME=AAAAC3Nza...      # your public key
 BOB=AAAAC3Nza...     # Bob's public key
 
-# message: recipients' keys on the first line, then the body
-printf '%s %s\nhello\n' "$ME" "$BOB" > message
+# a new chat gets a random id; a topic also gets a tag: launch@<id>
+# replies reuse the chat word exactly as received
+CHAT="@$(openssl rand -hex 8)"
 
-# to send an image (up to 1 MB), put the file after the key line instead
-# { echo "$ME $BOB"; cat photo.jpg; } > message
+# message: chat and recipients' keys on the first line, then the body
+printf '%s %s %s\nhello\n' "$CHAT" "$ME" "$BOB" > message
+
+# to send an image (up to 1 MB), put the file after the first line instead
+# { echo "$CHAT $ME $BOB"; cat photo.jpg; } > message
 
 # sign it (creates message.sig)
 ssh-keygen -Y sign -f ~/.ssh/tlx_ed25519 -n chat message
