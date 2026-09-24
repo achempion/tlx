@@ -10,7 +10,7 @@ Build anything on top: a TUI, a desktop app, a bot, a script.
 
 - **No new crypto.** SSH keys for identity, SSH for transport, age for encryption,
   SSH signatures for authorship.
-- **Small enough to audit.** The relay and `tlxd` are each under 200 lines with zero dependencies.
+- **Small enough to audit.** The relay and `tlxd` are each under 300 lines with zero dependencies.
 - **A server that knows nothing.** The relay sees encrypted blobs and who to
   deliver them to, never content or chats.
 - **Chats without a server.** A chat is just its signed member list; clients

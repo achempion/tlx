@@ -12,8 +12,10 @@ import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
 
 REQUIRED_PROGRAMS = ["ssh", "ssh-keygen", "age"]
+SSH_CONNECTION_FAILED = 255
 SIGNATURE_START = b"-----BEGIN SSH SIGNATURE-----"
 
 SCHEMA = """
@@ -48,7 +50,8 @@ create table if not exists outbox (
     chat_id text not null,
     recipient_public_keys text,
     body blob not null,
-    sent_at integer
+    sent_at integer,
+    error text
 );
 """
 
@@ -66,8 +69,9 @@ class Message:
 
 @dataclass(frozen=True)
 class PutResult:
-    delivered: bool
+    accepted: bool
     rejected_public_keys: list[str]
+    error: Optional[str]
 
 
 @dataclass(frozen=True)
@@ -90,7 +94,9 @@ class Relay:
     def put(self, recipient_public_keys, blob):
         result = subprocess.run(self._ssh_command("put", *recipient_public_keys), input=blob, capture_output=True)
         rejected_public_keys = result.stdout.decode().split() if result.returncode == os.EX_NOUSER else []
-        return PutResult(delivered=result.returncode == 0, rejected_public_keys=rejected_public_keys)
+        refused = result.returncode not in (0, os.EX_NOUSER, SSH_CONNECTION_FAILED)
+        error = (result.stderr.decode(errors="replace").strip() or f"exit {result.returncode}") if refused else None
+        return PutResult(accepted=result.returncode == 0, rejected_public_keys=rejected_public_keys, error=error)
 
     def _ssh_command(self, *relay_command):
         return [
@@ -156,12 +162,16 @@ class Storage:
         return [row[0] for row in rows]
 
     def unsent_outbox_messages(self):
-        return self.connection.execute(
-            "select claimed_at, chat_id, recipient_public_keys, body from outbox where sent_at is null").fetchall()
+        return self.connection.execute("select claimed_at, chat_id, recipient_public_keys, body from outbox "
+                                       "where sent_at is null and error is null").fetchall()
 
     def mark_sent(self, claimed_at):
         with self.connection:
             self.connection.execute("update outbox set sent_at = ? where claimed_at = ?", (int(time.time()), claimed_at))
+
+    def mark_failed(self, claimed_at, error):
+        with self.connection:
+            self.connection.execute("update outbox set error = ? where claimed_at = ?", (error, claimed_at))
 
 
 def run(command, stdin=b""):
@@ -235,6 +245,8 @@ def listen(relay, storage):
 def sign_and_encrypt(chat_id, claimed_at, recipient_public_keys, body, key_path):
     signed_content = f"{chat_id} {claimed_at} {' '.join(recipient_public_keys)}\n".encode() + body
     signature = run(["ssh-keygen", "-Y", "sign", "-f", key_path, "-n", "chat"], signed_content)
+    if signature is None:
+        return None
     age_arguments = [argument for key in recipient_public_keys for argument in ("-r", f"ssh-ed25519 {key}")]
     return run(["age", *age_arguments], signed_content + signature)
 
@@ -247,13 +259,18 @@ def send_outbox(relay, database_path, own_public_key):
             recipient_public_keys = list(dict.fromkeys([own_public_key, *listed_public_keys]))
             while True:
                 blob = sign_and_encrypt(chat_id, claimed_at, recipient_public_keys, body, relay.key_path)
+                if blob is None:
+                    result = PutResult(accepted=False, rejected_public_keys=[], error="cannot sign or encrypt")
+                    break
                 result = relay.put(recipient_public_keys, blob)
                 if not result.rejected_public_keys:
                     break
                 storage.mark_rejected(result.rejected_public_keys)
                 recipient_public_keys = [key for key in recipient_public_keys if key not in result.rejected_public_keys]
-            if result.delivered:
+            if result.accepted:
                 storage.mark_sent(claimed_at)
+            elif result.error:
+                storage.mark_failed(claimed_at, result.error)
         time.sleep(1)
 
 
