@@ -75,13 +75,28 @@ ssh -i ~/.ssh/tlx_ed25519 -p 2222 tlx@203.0.113.10 get 0
 
 ## tlxd
 
-Keeps a SQLite database in sync with the relay: decrypts new messages, checks their signatures and saves them.
+Keeps a SQLite database in sync with the relay: sends what's in `outbox`, and decrypts, checks and saves new messages.
 Needs `ssh`, `ssh-keygen` and `age`. Connect to the relay once by hand first, so its host key is in `known_hosts`.
 
 ```bash
 python3 tlxd.py --host 203.0.113.10 --port 2222 --key-path ~/.ssh/tlx_ed25519 --database-path ~/tlx.db
 ```
 
+To send, insert into `outbox`. `claimed_at` is when you wrote the message, in Unix nanoseconds; use a new one for
+every message. Your own key is always added to the recipients.
+
 ```bash
+# reply to everyone seen in a chat
+sqlite3 ~/tlx.db "insert into outbox (claimed_at, chat_id, body)
+  values ($(date +%s)000000000, '@0123456789abcdef', 'hello')"
+
+# start a new chat with Bob
+sqlite3 ~/tlx.db "insert into outbox (claimed_at, chat_id, recipient_public_keys, body)
+  values ($(date +%s)000000000, '@$(openssl rand -hex 8)', '$BOB', 'hi Bob')"
+
+# read
 sqlite3 ~/tlx.db "select chat_id, body from messages order by sequence"
 ```
+
+`sent_at` is set once the relay accepts the message. If the relay refuses it, the reason is in `error`.
+The row leaves `outbox` when your own copy arrives in `messages`.

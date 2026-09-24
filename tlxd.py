@@ -162,7 +162,7 @@ class Storage:
         return [row[0] for row in rows]
 
     def unsent_outbox_messages(self):
-        return self.connection.execute("select claimed_at, chat_id, recipient_public_keys, body from outbox "
+        return self.connection.execute("select claimed_at, chat_id, recipient_public_keys, cast(body as blob) from outbox "
                                        "where sent_at is null and error is null").fetchall()
 
     def mark_sent(self, claimed_at):
