@@ -5,12 +5,12 @@ Encrypted messaging you can actually understand.
 Communicate with people you trust, away from the eyes of modern surveillance and large corporations.
 
 tlx is the smallest possible end-to-end encrypted messaging stack: a relay that
-stores what it can't read, and a sync that keeps a local SQLite database current.
-Build any client on top: a TUI, a desktop app, a bot, a script.
+stores what it can't read, and a daemon, `tlxd`, that syncs a local SQLite database with it.
+Build anything on top: a TUI, a desktop app, a bot, a script.
 
 - **No new crypto.** SSH keys for identity, SSH for transport, age for encryption,
   SSH signatures for authorship.
-- **Small enough to audit.** The relay and sync are each under 200 lines with zero dependencies.
+- **Small enough to audit.** The relay and `tlxd` are each under 200 lines with zero dependencies.
 - **A server that knows nothing.** The relay sees encrypted blobs and who to
   deliver them to, never content or chats.
 - **Chats without a server.** A chat is just its signed member list; clients
@@ -18,11 +18,11 @@ Build any client on top: a TUI, a desktop app, a bot, a script.
 
 ## Architecture
 
-| Component | What it does                                                         |
-|-----------|----------------------------------------------------------------------|
-| `relay`   | SSH-only mailbox: `put` a blob into inboxes, `get` yours by sequence |
-| `sync`    | Signs, encrypts, sends; fetches, verifies, stores in SQLite          |
-| `tui`     | Example client: reads the database, writes the outbox                |
+| Component | What it does                                                                              |
+|-----------|-------------------------------------------------------------------------------------------|
+| `relay`   | SSH-only mailbox: `put` a blob into inboxes, `get` yours by sequence                      |
+| `tlxd`    | Syncs SQLite with the relay: signs and sends the outbox; verifies and stores new messages |
+| `tui`     | Example UI: reads messages, writes the outbox                                             |
 
 ## Relay
 
@@ -82,4 +82,19 @@ while true; do
   done < <(ssh -i ~/.ssh/id_ed25519 -p 2222 tlx@203.0.113.10 get "$seq")
   sleep 1
 done
+```
+
+## tlxd
+
+Keeps `tlx.db` in sync with the relay. Needs `ssh`, `ssh-keygen` and `age`.
+
+```bash
+TLX_RELAY=tlx@203.0.113.10 TLX_PORT=2222 python3 tlxd.py
+```
+
+To send, insert into `outbox`. New messages appear in `messages`.
+
+```bash
+sqlite3 tlx.db "insert into outbox (members, body) values ('$BOB', 'hello')"
+sqlite3 tlx.db "select time, sender, body from messages"
 ```
