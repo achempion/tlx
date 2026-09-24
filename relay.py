@@ -66,8 +66,12 @@ def put(recipient_keys, member_keys):
     recipient_keys = list(dict.fromkeys(recipient_keys))
     if not recipient_keys:
         sys.exit("list at least one recipient")
-    if not set(recipient_keys).issubset(member_keys):
-        sys.exit("every recipient must be a member")
+
+    unknown_keys = [key for key in recipient_keys if key not in member_keys]
+    if unknown_keys:
+        print("unknown recipients:", file=sys.stderr)
+        print("\n".join(unknown_keys))
+        sys.exit(os.EX_NOUSER)
 
     blob = sys.stdin.buffer.read(MAX_BLOB_BYTES + 1)
     if not 0 < len(blob) <= MAX_BLOB_BYTES:
