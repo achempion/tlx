@@ -36,7 +36,7 @@ def save(path, blob):
 
 def store_blob(blob):
     blob_path = BLOBS_DIR / hashlib.sha256(blob).hexdigest()
-    save(blob_path, blob)
+    save(blob_path, b"%d\n" % int(time.time()) + blob)
     return blob_path
 
 
