@@ -41,6 +41,8 @@ docker run -d --name tlx -p 2222:22 \
 
 ### Use
 
+`203.0.113.10` is an example address. Replace it with the address of your relay.
+
 ```bash
 ALICE=AAAAC3Nza...   # Alice's public key
 BOB=AAAAC3Nza...     # Bob's public key
@@ -56,4 +58,19 @@ age -r "ssh-ed25519 $ALICE" -r "ssh-ed25519 $BOB" < photo.jpg \
 
 # print blobs newer than LAST_SEEN_SEQUENCE, waiting up to 60 s
 ssh -i ~/.ssh/id_ed25519 -p 2222 tlx@203.0.113.10 get 0
+```
+
+### Receive new messages
+
+Decrypts new messages as they arrive and reconnects after each wait (bash):
+
+```bash
+seq=0
+while true; do
+  while read -r n size; do
+    dd bs=1 count="$size" 2>/dev/null | age -d -i ~/.ssh/id_ed25519 | cat -v
+    seq=$n
+  done < <(ssh -i ~/.ssh/id_ed25519 -p 2222 tlx@203.0.113.10 get "$seq")
+  sleep 1
+done
 ```
