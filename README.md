@@ -37,7 +37,8 @@ docker run -d --name tlx -p 2222:22 \
   achempion/tlx-relay
 ```
 
-`TLX_MEMBERS` is a space-separated list of public keys. Get a key with `cut -d' ' -f2 ~/.ssh/id_ed25519.pub`.
+`TLX_MEMBERS` is a space-separated list of public keys. Create a key with
+`ssh-keygen -t ed25519 -N '' -f ~/.ssh/tlx_ed25519` and get its public part with `cut -d' ' -f2 ~/.ssh/tlx_ed25519.pub`.
 
 ### Use
 
@@ -51,11 +52,14 @@ BOB=AAAAC3Nza...     # Bob's public key
 # replies reuse the chat word exactly as received
 CHAT="@$(openssl rand -hex 8)"
 
-# message: chat and recipients' keys on the first line, then the body
-printf '%s %s %s\nhello\n' "$CHAT" "$ME" "$BOB" > message
+# when you send it, in Unix nanoseconds; each of your messages needs a new one
+CLAIMED_AT="$(date +%s)000000000"
+
+# message: chat, claimed time and recipients' keys on the first line, then the body
+printf '%s %s %s %s\nhello\n' "$CHAT" "$CLAIMED_AT" "$ME" "$BOB" > message
 
 # to send an image (up to 1 MB), put the file after the first line instead
-# { echo "$CHAT $ME $BOB"; cat photo.jpg; } > message
+# { echo "$CHAT $CLAIMED_AT $ME $BOB"; cat photo.jpg; } > message
 
 # sign it (creates message.sig)
 ssh-keygen -Y sign -f ~/.ssh/tlx_ed25519 -n chat message
@@ -69,32 +73,15 @@ cat message message.sig \
 ssh -i ~/.ssh/tlx_ed25519 -p 2222 tlx@203.0.113.10 get 0
 ```
 
-### Receive new messages
-
-Decrypts new messages as they arrive and reconnects after each wait (bash):
-
-```bash
-seq=0
-while true; do
-  while read -r n size; do
-    dd bs=1 count="$size" 2>/dev/null | age -d -i ~/.ssh/id_ed25519 | cat -v
-    seq=$n
-  done < <(ssh -i ~/.ssh/id_ed25519 -p 2222 tlx@203.0.113.10 get "$seq")
-  sleep 1
-done
-```
-
 ## tlxd
 
-Keeps `tlx.db` in sync with the relay. Needs `ssh`, `ssh-keygen` and `age`.
+Keeps a SQLite database in sync with the relay: decrypts new messages, checks their signatures and saves them.
+Needs `ssh`, `ssh-keygen` and `age`. Connect to the relay once by hand first, so its host key is in `known_hosts`.
 
 ```bash
-TLX_RELAY=tlx@203.0.113.10 TLX_PORT=2222 python3 tlxd.py
+python3 tlxd.py --host 203.0.113.10 --port 2222 --key-path ~/.ssh/tlx_ed25519 --database-path ~/tlx.db
 ```
 
-To send, insert into `outbox`. New messages appear in `messages`.
-
 ```bash
-sqlite3 tlx.db "insert into outbox (members, body) values ('$BOB', 'hello')"
-sqlite3 tlx.db "select time, sender, body from messages"
+sqlite3 ~/tlx.db "select chat_id, body from messages order by sequence"
 ```

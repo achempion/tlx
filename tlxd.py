@@ -29,8 +29,10 @@ create table if not exists messages (
     sequence integer primary key,
     chat_id text not null,
     sender_id integer not null references seen_participants (id),
+    claimed_at integer not null,
     relayed_at integer not null,
-    body blob not null
+    body blob not null,
+    unique (sender_id, claimed_at)
 );
 
 create table if not exists message_recipients (
@@ -47,6 +49,7 @@ class Message:
     chat_id: str
     recipient_public_keys: list[str]
     sender_public_key: str
+    claimed_at: int
     relayed_at: int
     body: bytes
 
@@ -74,9 +77,11 @@ class Storage:
             recipient_ids = [self.seen_participant_id(message.chat_id, public_key)
                              for public_key in message.recipient_public_keys]
             sender_id = self.seen_participant_id(message.chat_id, message.sender_public_key)
-            self.connection.execute(
-                "insert or ignore into messages values (?, ?, ?, ?, ?)",
-                (message.sequence, message.chat_id, sender_id, message.relayed_at, message.body))
+            inserted = self.connection.execute(
+                "insert or ignore into messages values (?, ?, ?, ?, ?, ?)",
+                (message.sequence, message.chat_id, sender_id, message.claimed_at, message.relayed_at, message.body))
+            if inserted.rowcount == 0:
+                return
             self.connection.executemany(
                 "insert or ignore into message_recipients values (?, ?)",
                 [(message.sequence, recipient_id) for recipient_id in recipient_ids])
@@ -126,8 +131,11 @@ def decrypt_and_verify(sequence, blob, key_path):
     signature_start = plaintext.rindex(SIGNATURE_START)
     signed_content, signature = plaintext[:signature_start], plaintext[signature_start:]
     first_line, _, body = signed_content.partition(b"\n")
-    chat_id, _, recipients = first_line.decode(errors="replace").partition(" ")
-    recipient_public_keys = list(dict.fromkeys(recipients.split()))
+    words = first_line.decode(errors="replace").split()
+    if len(words) < 3 or not words[1].isdecimal():
+        print(f"message {sequence}: first line must be CHAT CLAIMED_AT RECIPIENT_KEY...", file=sys.stderr)
+        return None
+    chat_id, claimed_at, recipient_public_keys = words[0], int(words[1]), list(dict.fromkeys(words[2:]))
 
     sender_public_key = verify(signed_content, signature, recipient_public_keys)
     if sender_public_key is None:
@@ -135,7 +143,7 @@ def decrypt_and_verify(sequence, blob, key_path):
         return None
 
     return Message(sequence=sequence, chat_id=chat_id, recipient_public_keys=recipient_public_keys,
-                   sender_public_key=sender_public_key, relayed_at=int(relayed_at), body=body)
+                   sender_public_key=sender_public_key, claimed_at=claimed_at, relayed_at=int(relayed_at), body=body)
 
 
 def listen(host, port, key_path, storage):
