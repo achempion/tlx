@@ -42,8 +42,17 @@ docker run -d --name tlx -p 2222:22 \
 ### Use
 
 ```bash
-# deliver a blob to one or more inboxes (include your own key to keep a copy)
-echo hello | ssh -i ~/.ssh/id_ed25519 -p 2222 tlx@203.0.113.10 put AAAAC3Nza... AAAAC3Nza...
+ALICE=AAAAC3Nza...   # Alice's public key
+BOB=AAAAC3Nza...     # Bob's public key
+
+# encrypt for Alice and Bob, then deliver to both inboxes
+echo hello \
+  | age -r "ssh-ed25519 $ALICE" -r "ssh-ed25519 $BOB" \
+  | ssh -i ~/.ssh/id_ed25519 -p 2222 tlx@203.0.113.10 put $ALICE $BOB
+
+# to send an image (up to 1 MB), encrypt the file instead
+age -r "ssh-ed25519 $ALICE" -r "ssh-ed25519 $BOB" < photo.jpg \
+  | ssh -i ~/.ssh/id_ed25519 -p 2222 tlx@203.0.113.10 put $ALICE $BOB
 
 # print blobs newer than LAST_SEEN_SEQUENCE, waiting up to 60 s
 ssh -i ~/.ssh/id_ed25519 -p 2222 tlx@203.0.113.10 get 0
