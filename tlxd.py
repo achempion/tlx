@@ -116,8 +116,30 @@ def verify(message, signature, recipient_public_keys):
         return sender_public_key if verified is not None else None
 
 
-def listen(host, port, key_path):
-    last_seen_sequence = 0
+def decrypt_and_verify(sequence, blob, key_path):
+    relayed_at, _, encrypted = blob.partition(b"\n")
+    plaintext = run(["age", "-d", "-i", key_path], encrypted)
+    if plaintext is None or SIGNATURE_START not in plaintext:
+        print(f"message {sequence}: cannot decrypt or not signed", file=sys.stderr)
+        return None
+
+    signature_start = plaintext.rindex(SIGNATURE_START)
+    signed_content, signature = plaintext[:signature_start], plaintext[signature_start:]
+    first_line, _, body = signed_content.partition(b"\n")
+    chat_id, _, recipients = first_line.decode(errors="replace").partition(" ")
+    recipient_public_keys = list(dict.fromkeys(recipients.split()))
+
+    sender_public_key = verify(signed_content, signature, recipient_public_keys)
+    if sender_public_key is None:
+        print(f"message {sequence}: invalid signature", file=sys.stderr)
+        return None
+
+    return Message(sequence=sequence, chat_id=chat_id, recipient_public_keys=recipient_public_keys,
+                   sender_public_key=sender_public_key, relayed_at=int(relayed_at), body=body)
+
+
+def listen(host, port, key_path, storage):
+    last_seen_sequence = storage.last_seen_sequence()
     while True:
         output = run([
             "ssh",
@@ -137,25 +159,9 @@ def listen(host, port, key_path):
         while header := stream.readline():
             sequence, size = map(int, header.split())
             last_seen_sequence = sequence
-
-            plaintext = run(["age", "-d", "-i", key_path], stream.read(size))
-            if plaintext is None or SIGNATURE_START not in plaintext:
-                print(f"message {sequence}: cannot decrypt or not signed", file=sys.stderr)
-                continue
-
-            signature_start = plaintext.rindex(SIGNATURE_START)
-            message, signature = plaintext[:signature_start], plaintext[signature_start:]
-            recipients_line, _, body = message.partition(b"\n")
-            recipient_public_keys = recipients_line.decode(errors="replace").split()
-
-            sender_public_key = verify(message, signature, recipient_public_keys)
-            if sender_public_key is None:
-                print(f"message {sequence}: invalid signature", file=sys.stderr)
-                continue
-
-            text = body.decode(errors="replace")
-            print(f"from {sender_public_key}:", flush=True)
-            print("".join(c for c in text if c.isprintable() or c == "\n"), flush=True)
+            message = decrypt_and_verify(sequence, stream.read(size), key_path)
+            if message is not None:
+                storage.save_message(message)
 
 
 def main():
@@ -163,6 +169,7 @@ def main():
     parser.add_argument("--host", required=True, help="relay address, for example 203.0.113.10")
     parser.add_argument("--port", type=int, required=True, help="relay SSH port, for example 2222")
     parser.add_argument("--key-path", type=Path, required=True, help="private key, for example ~/.ssh/tlx_ed25519")
+    parser.add_argument("--database-path", type=Path, required=True, help="SQLite database, for example ~/tlx.db")
     args = parser.parse_args()
     key_path = args.key_path.expanduser()
 
@@ -172,7 +179,8 @@ def main():
 
     print(f"relay: {args.host}:{args.port}")
     print(f"key path: {key_path}")
-    listen(args.host, args.port, key_path)
+    storage = Storage(args.database_path.expanduser())
+    listen(args.host, args.port, key_path, storage)
 
 
 if __name__ == "__main__":
