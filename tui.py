@@ -199,7 +199,7 @@ HUES = 12   # about as many as a reader can tell apart in a name; more would onl
 def color_of(public_key, light_theme=False):
     """One of 12 hues spaced around the wheel, always the same for a key, lit for the theme's background."""
     hue = hashlib.sha256(public_key.encode()).digest()[0] % HUES / HUES
-    return Color.from_hsl(hue, 0.6, 0.42 if light_theme else 0.68).hex
+    return Color.from_hsl(hue, 0.6, 0.30 if light_theme else 0.68).hex
 
 
 def fingerprint(public_key):
@@ -737,11 +737,15 @@ class TlxApp(App):
     #chats > .option-list--option-highlighted { background: $foreground 12%; color: $foreground; }
     #chats > .option-list--option-hover { background: $foreground 8%; }
     #gutter { background: $background; background-tint: $foreground 5%; }
+    .-light-mode #chats, .-light-mode #gutter { background: $surface; background-tint: transparent; }
+    .-light-mode #gutter { color: $panel; }
     #header { height: 1; padding: 0 1; }
     #log { height: 1fr; padding: 0 1; }
     #composer { height: auto; max-height: 11; margin-top: 1; padding: 1 1; border: none;
                 border-top: solid $foreground 15%; background: transparent; }
     #composer:focus { border-top: solid $primary 50%; }
+    .-light-mode #composer { border-top: solid $panel; }
+    .-light-mode #composer:focus { border-top: solid $primary 50%; }
     #status { height: 1; padding: 0 1; color: $foreground-muted; text-wrap: nowrap; text-overflow: ellipsis; }
     #log, #composer, Switcher OptionList { scrollbar-gutter: stable; }
     #log, #composer, #chats, Switcher OptionList {
@@ -761,6 +765,8 @@ class TlxApp(App):
 
     def __init__(self, store, daemon=None):
         super().__init__()
+        self.register_theme(replace(self.get_theme("textual-light"), background="#FFFFFF", foreground="#1D1C1D",
+                                    surface="#F7F7F8", panel="#E5E5EA"))
         self.store = store
         self.daemon = daemon
         self.daemon_stopped = False

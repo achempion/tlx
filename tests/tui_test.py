@@ -20,7 +20,7 @@ PLAIN, TOPIC = "@plain", "launch@topic"
 
 
 def texts(app, selector="MessageRow"):
-    return [widget.query_one(".body").content.plain for widget in app.query(selector)]
+    return [widget.content.plain for widget in app.query(f"{selector} > .body")]
 
 
 async def wait_for(pilot, condition, description, timeout=30):

@@ -21,7 +21,9 @@ Build anything on top: a TUI, a desktop app, a bot, a script.
   <img src="screenshots/tui-light.png" alt="tlx TUI showing chats and a topic conversation" width="100%">
 </picture>
 
-[Light](screenshots/tui-light.png) · [Dark](screenshots/tui-dark.png)
+<p align="center">
+  <a href="screenshots/tui-light.png">Light</a> · <a href="screenshots/tui-dark.png">Dark</a>
+</p>
 
 ## Quickstart
 
@@ -251,3 +253,7 @@ python3 tests/tui_test.py RelayTests
 
 Each case starts fresh. To run one case, append its class and method, such as
 `python3 tests/e2e.py MessagingTests.test_connection_retry_and_offline_catchup`.
+
+## Sponsored by
+
+[Tecotype](https://tecotype.com?utm_source=tlx), keyboard-first mail app.
