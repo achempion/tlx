@@ -23,6 +23,12 @@ Build anything on top: a TUI, a desktop app, a bot, a script.
 The relay is [under 150 lines of Python](relay.py), with a [Dockerfile under 25 lines](Dockerfile).
 Read both to see how it works: OpenSSH authenticates members and runs `relay.py` to store or fetch encrypted messages.
 
+Optionally, build the image locally from the cloned `tlx` directory:
+
+```bash
+docker build -t tlx-relay .
+```
+
 Run this on a server with Docker, using each member's public key from the client setup below:
 
 ```bash
@@ -37,10 +43,13 @@ with the longer list; the volumes keep its host key and inboxes.
 
 ### Local chat client
 
-You need Python 3.9+, OpenSSH 8.2+ and [age](https://github.com/FiloSottile/age). Install the TUI's
-dependency and create your identity:
+You need Git, Python 3.9+, OpenSSH 8.2+ and [age](https://github.com/FiloSottile/age). Clone the project,
+install the TUI's dependency and create your identity:
 
 ```bash
+git clone https://github.com/achempion/tlx.git
+cd tlx
+
 python3 -m pip install textual
 mkdir -m 700 ~/.tlx
 ssh-keygen -t ed25519 -N '' -f ~/.tlx/key
@@ -67,6 +76,7 @@ Type `/new PUBLIC_KEY` with another member's key, then send a message. `/help` l
 ## Demo
 
 With the client dependencies installed, try two people on one machine talking through a local relay:
+run the commands below from the cloned `tlx` directory in each terminal.
 
 ```bash
 for who in alice bob; do mkdir -m 700 ~/.tlx-$who && ssh-keygen -t ed25519 -N '' -f ~/.tlx-$who/key; done
