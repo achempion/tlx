@@ -25,6 +25,10 @@ struct Relay {
         ssh = SSH(host: address.host, port: address.port, privateKey: identity.privateKey)
     }
 
+    func check() async throws {
+        _ = try await ssh.run("")
+    }
+
     func get(after sequence: Int) async throws -> [(sequence: Int, blob: Data)] {
         let output = try await ssh.run("get \(sequence)")
         guard output.exitStatus == 0 else {

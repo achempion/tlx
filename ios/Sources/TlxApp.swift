@@ -24,7 +24,15 @@ struct TlxApp: App {
     var body: some Scene {
         WindowGroup {
             if let settings {
-                ChatListView(settings: settings)
+                NavigationStack {
+                    ChatListView(settings: settings)
+                        .navigationTitle("Chats")
+                        .toolbar {
+                            NavigationLink("Settings") {
+                                SettingsView(settings: $settings)
+                            }
+                        }
+                }
             } else {
                 SettingsView(settings: $settings)
             }
