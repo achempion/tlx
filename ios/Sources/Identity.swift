@@ -8,7 +8,7 @@ private let keychainItem: [String: Any] = [
     kSecAttrAccount as String: "key",
 ]
 
-struct Identity {
+struct Identity: Equatable {
     let privateKeyPEM: String
     let privateKey: Data
     let publicKey: String

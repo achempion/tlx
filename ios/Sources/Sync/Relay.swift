@@ -1,6 +1,6 @@
 import Foundation
 
-struct RelayAddress {
+struct RelayAddress: Equatable {
     var host: String
     var port: Int
 

@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct Settings {
+struct Settings: Equatable {
     var identity: Identity
     var address: RelayAddress
 
@@ -34,7 +34,7 @@ struct TlxApp: App {
                             }
                         }
                 }
-                .task(id: scenePhase) {
+                .task(id: scenePhase == .active ? settings : nil) {
                     guard scenePhase == .active else {
                         return
                     }
