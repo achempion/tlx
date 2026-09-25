@@ -16,6 +16,7 @@ Build anything on top: a TUI, a desktop app, a bot, a script.
 - **Chats without a server.** A chat is just its signed member list; clients
   derive it themselves.
 
+<br>
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="screenshots/tui-dark.png">
   <img src="screenshots/tui-light.png" alt="tlx TUI showing chats and a topic conversation" width="100%">
@@ -24,6 +25,7 @@ Build anything on top: a TUI, a desktop app, a bot, a script.
 <p align="center">
   <a href="screenshots/tui-light.png">Light</a> · <a href="screenshots/tui-dark.png">Dark</a>
 </p>
+<br>
 
 ## Quickstart
 
