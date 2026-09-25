@@ -6,7 +6,6 @@ Communicate with people you trust, away from the eyes of modern surveillance and
 
 tlx is the smallest possible end-to-end encrypted messaging stack: a relay that
 stores what it can't read, and a daemon, `tlxd`, that syncs a local SQLite database with it.
-Build anything on top: a TUI, a desktop app, a bot, a script.
 
 - **No new crypto.** SSH keys for identity, SSH for transport, [age](https://github.com/FiloSottile/age) for encryption,
   SSH signatures for authorship.
