@@ -27,8 +27,13 @@ func listen(relay: Relay, storage: Storage, identity: Identity) async {
         }
         for (sequence, blob) in blobs {
             lastSeen = sequence
-            if let message = decryptAndVerify(sequence: sequence, blob: blob, identity: identity) {
-                try? storage.save(message)
+            guard let message = decryptAndVerify(sequence: sequence, blob: blob, identity: identity) else {
+                continue
+            }
+            do {
+                try storage.save(message)
+            } catch {
+                print("message \(sequence): \(error.localizedDescription)")
             }
         }
     }
