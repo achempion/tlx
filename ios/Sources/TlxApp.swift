@@ -20,6 +20,7 @@ struct Settings {
 @main
 struct TlxApp: App {
     @State private var settings = Settings.load()
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
@@ -32,6 +33,12 @@ struct TlxApp: App {
                                 SettingsView(settings: $settings)
                             }
                         }
+                }
+                .task(id: scenePhase) {
+                    guard scenePhase == .active else {
+                        return
+                    }
+                    await foregroundSync(settings: settings)
                 }
             } else {
                 SettingsView(settings: $settings)
