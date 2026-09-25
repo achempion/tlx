@@ -47,7 +47,14 @@ struct Message {
     let body: Data
 }
 
-final class Storage {
+struct OutboxRow {
+    let claimedAt: Int
+    let chatId: String
+    let recipientPublicKeys: [String]
+    let body: Data
+}
+
+final class Storage: @unchecked Sendable {
     private let db: SQLite
     private let ownPublicKey: String
 
@@ -83,6 +90,34 @@ final class Storage {
         } catch {
             try? db.execute("rollback")
             throw error
+        }
+    }
+
+    func unsentOutbox() throws -> [OutboxRow] {
+        try db.query("select claimed_at, chat_id, recipient_public_keys, body from outbox "
+                     + "where sent_at is null and error is null").map { row in
+            OutboxRow(claimedAt: row.int(0), chatId: row.text(1),
+                      recipientPublicKeys: row.text(2).split(whereSeparator: \.isWhitespace).map(String.init), body: row.blob(3))
+        }
+    }
+
+    func recipientPublicKeys(chatId: String) throws -> [String] {
+        try db.query("select public_key from seen_participants where chat_id = ? and rejected_by_relay_at is null", [chatId])
+            .map { $0.text(0) }
+    }
+
+    func markSent(claimedAt: Int) throws {
+        _ = try db.run("update outbox set sent_at = ? where claimed_at = ?", [Int(Date().timeIntervalSince1970), claimedAt])
+    }
+
+    func markFailed(claimedAt: Int, error: String) throws {
+        _ = try db.run("update outbox set error = ? where claimed_at = ?", [error, claimedAt])
+    }
+
+    func markRejected(publicKeys: [String]) throws {
+        for publicKey in publicKeys {
+            _ = try db.run("update seen_participants set rejected_by_relay_at = ? where public_key = ?",
+                           [Int(Date().timeIntervalSince1970), publicKey])
         }
     }
 

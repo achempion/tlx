@@ -51,6 +51,26 @@ struct Relay {
         }
         return blobs
     }
+
+    struct PutResult {
+        var accepted = false
+        var rejectedPublicKeys: [String] = []
+        var error: String?
+    }
+
+    func put(recipientPublicKeys: [String], blob: Data) async throws -> PutResult {
+        let output = try await ssh.run("put " + recipientPublicKeys.joined(separator: " "), stdin: blob)
+        switch output.exitStatus {
+        case 0:
+            return PutResult(accepted: true)
+        case 67:
+            let rejected = String(decoding: output.stdout, as: UTF8.self).split(whereSeparator: \.isWhitespace)
+            return PutResult(rejectedPublicKeys: rejected.map(String.init))
+        default:
+            let message = String(decoding: output.stderr, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+            return PutResult(error: message.isEmpty ? "exit \(output.exitStatus)" : message)
+        }
+    }
 }
 
 enum RelayError: LocalizedError {
