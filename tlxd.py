@@ -112,10 +112,11 @@ class Relay:
 
 
 class Storage:
-    def __init__(self, database_path, own_public_key):
+    def __init__(self, database_path, own_public_key, initialize_schema=True):
         self.own_public_key = own_public_key
         self.connection = sqlite3.connect(database_path)
-        self.connection.executescript(SCHEMA)
+        if initialize_schema:
+            self.connection.executescript(SCHEMA)
 
     def last_seen_sequence(self):
         row = self.connection.execute("select max(sequence) from messages").fetchone()
@@ -210,10 +211,18 @@ def decrypt_and_verify(sequence, blob, key_path, own_public_key):
     signed_content, signature = plaintext[:signature_start], plaintext[signature_start:]
     first_line, _, body = signed_content.partition(b"\n")
     words = first_line.decode(errors="replace").split()
-    if len(words) < 3 or not words[1].isdecimal():
+    if len(words) < 3 or not words[1].isascii() or not words[1].isdecimal():
         print(f"message {sequence}: first line must be CHAT CLAIMED_AT RECIPIENT_KEY...", file=sys.stderr)
         return None
-    chat_id, claimed_at, recipient_public_keys = words[0], int(words[1]), list(dict.fromkeys(words[2:]))
+    try:
+        claimed_at = int(words[1])
+    except ValueError:
+        print(f"message {sequence}: invalid claimed_at", file=sys.stderr)
+        return None
+    if claimed_at > 2**63 - 1:
+        print(f"message {sequence}: claimed_at exceeds SQLite's integer range", file=sys.stderr)
+        return None
+    chat_id, recipient_public_keys = words[0], list(dict.fromkeys(words[2:]))
     if own_public_key not in recipient_public_keys:
         print(f"message {sequence}: our key is not listed", file=sys.stderr)
         return None
@@ -252,11 +261,14 @@ def sign_and_encrypt(chat_id, claimed_at, recipient_public_keys, body, key_path)
 
 
 def send_outbox(relay, database_path, own_public_key):
-    storage = Storage(database_path, own_public_key)
+    storage = Storage(database_path, own_public_key, initialize_schema=False)
     while True:
         for claimed_at, chat_id, listed_public_keys, body in storage.unsent_outbox_messages():
             listed_public_keys = listed_public_keys.split() if listed_public_keys else storage.recipient_public_keys(chat_id)
             recipient_public_keys = list(dict.fromkeys([own_public_key, *listed_public_keys]))
+            if len(recipient_public_keys) == 1:
+                storage.mark_failed(claimed_at, "no other deliverable recipients")
+                continue
             while True:
                 blob = sign_and_encrypt(chat_id, claimed_at, recipient_public_keys, body, relay.key_path)
                 if blob is None:
@@ -266,7 +278,13 @@ def send_outbox(relay, database_path, own_public_key):
                 if not result.rejected_public_keys:
                     break
                 storage.mark_rejected(result.rejected_public_keys)
+                if own_public_key in result.rejected_public_keys:
+                    result = PutResult(accepted=False, rejected_public_keys=[], error="own key rejected by relay")
+                    break
                 recipient_public_keys = [key for key in recipient_public_keys if key not in result.rejected_public_keys]
+                if len(recipient_public_keys) == 1:
+                    result = PutResult(accepted=False, rejected_public_keys=[], error="no other deliverable recipients")
+                    break
             if result.accepted:
                 storage.mark_sent(claimed_at)
             elif result.error:
@@ -277,22 +295,26 @@ def send_outbox(relay, database_path, own_public_key):
 def main():
     parser = argparse.ArgumentParser(description="Sync messages with a tlx relay.")
     parser.add_argument("--host", required=True, help="relay address, for example 203.0.113.10")
-    parser.add_argument("--port", type=int, required=True, help="relay SSH port, for example 2222")
-    parser.add_argument("--key-path", type=Path, required=True, help="private key, for example ~/.ssh/tlx_ed25519")
-    parser.add_argument("--database-path", type=Path, required=True, help="SQLite database, for example ~/tlx.db")
+    parser.add_argument("--port", type=int, default=2222, help="relay SSH port, default 2222")
+    parser.add_argument("--dir", type=Path, default=Path("~/.tlx"),
+                        help="directory holding your key (key, key.pub) and this daemon's database (tlxd.db), default ~/.tlx")
     args = parser.parse_args()
-    relay = Relay(args.host, args.port, args.key_path.expanduser())
-    database_path = args.database_path.expanduser()
+    directory = args.dir.expanduser()
+    relay = Relay(args.host, args.port, directory / "key")
+    database_path = directory / "tlxd.db"
 
     missing_programs = [program for program in REQUIRED_PROGRAMS if shutil.which(program) is None]
     if missing_programs:
         sys.exit(f"missing required programs: {', '.join(missing_programs)}")
+    if not relay.key_path.exists():
+        sys.exit(f"{relay.key_path} does not exist: mkdir -m 700 {directory} && ssh-keygen -t ed25519 -N '' -f {relay.key_path}")
 
     own_public_key = run(["ssh-keygen", "-y", "-f", relay.key_path]).split()[1].decode()
     print(f"relay: {relay.host}:{relay.port}")
-    print(f"key path: {relay.key_path}")
+    print(f"dir: {directory}")
+    storage = Storage(database_path, own_public_key)
     threading.Thread(target=send_outbox, args=(relay, database_path, own_public_key), daemon=True).start()
-    listen(relay, Storage(database_path, own_public_key))
+    listen(relay, storage)
 
 
 if __name__ == "__main__":
