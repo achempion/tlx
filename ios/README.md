@@ -22,18 +22,22 @@ ios/
 ├─ Info.plist              bundle keys and the launch screen; background refresh comes with that milestone
 ├─ Makefile                make core binds the Go core, make project generates the Xcode project
 ├─ Sources/
-│  ├─ TlxApp.swift         entry point: Settings, and the switch between the settings screen and the chats
+│  ├─ TlxApp.swift         entry point: Settings, the switch between screens, the engine's lifetime
 │  ├─ Identity.swift       the private key, parsed by the core and kept in the Keychain
-│  ├─ Relay.swift          the relay address, and get and put in tlx terms
-│  ├─ SSH.swift            one command over swift-nio-ssh: key authentication, pinned host key, output
-│  ├─ SyncEngine.swift     port of tlxd.py: foreground sends and receives, background only receives
-│  ├─ Store.swift          the UI's queries, port of tui.py's Store
-│  ├─ Notifications.swift  local notifications for new messages
-│  ├─ SettingsView.swift   host, port and the pasted key
-│  ├─ ChatListView.swift   the chats
-│  └─ ChatView.swift       one chat and its composer
+│  ├─ Sync/                the tlxd port
+│  │  ├─ Relay.swift       the relay address, and get and put in tlx terms
+│  │  ├─ Storage.swift     sync.db: tlxd's schema, saving messages, the outbox queries
+│  │  └─ SyncEngine.swift  decrypt and verify, sign and encrypt, the receive and send loops
+│  ├─ Views/               the tui port
+│  │  ├─ Store.swift       the UI's queries over sync.db and ui.db
+│  │  ├─ SettingsView.swift  host, port and the pasted key
+│  │  ├─ ChatListView.swift  the chats
+│  │  └─ ChatView.swift    one chat and its composer
+│  └─ Lib/                 one thin layer each over a library nothing else touches
+│     ├─ SSH.swift         one command over swift-nio-ssh: key authentication, pinned host key, output
+│     └─ SQLite.swift      open, execute, run, query over the C API
 ├─ core/
 │  ├─ go.mod, go.sum
-│  └─ core.go              key parsing, then encrypt, decrypt, sign and verify with age and SSH signatures
+│  └─ core.go              key parsing, decrypt and encrypt with age, sign and verify with SSH signatures
 └─ Assets.xcassets/        app icon
 ```
