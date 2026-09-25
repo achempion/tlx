@@ -1,0 +1,21 @@
+name: tlx
+options:
+  bundleIdPrefix: com.achempion
+  deploymentTarget:
+    iOS: "17.0"
+packages:
+  swift-nio-ssh:
+    url: https://github.com/apple/swift-nio-ssh
+    exactVersion: 0.15.0
+targets:
+  tlx:
+    type: application
+    platform: iOS
+    sources: [Sources]
+    settings:
+      INFOPLIST_FILE: Info.plist
+    dependencies:
+      - framework: Core.xcframework
+        embed: false
+      - package: swift-nio-ssh
+        product: NIOSSH
