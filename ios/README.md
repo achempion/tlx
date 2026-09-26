@@ -40,7 +40,8 @@ opportunistic; it never runs after a force quit, in Low Power Mode, or when Back
 
 With notifications turned on in Settings, which is when the app asks iOS for permission, a message from
 someone else that arrives while the app is in the background posts a local notification, named as the chat
-list names the chat. Topics stay quiet. Nothing leaves the device: there is no push server.
+list names the chat. Topics stay quiet. Tapping the notification opens the chat, and notifications clear
+once their messages have been seen. Nothing leaves the device: there is no push server.
 
 To try a refresh without waiting, pause the app in the debugger and run:
 
@@ -58,7 +59,7 @@ ios/
 ├─ Sources/
 │  ├─ TlxApp.swift         entry point: Settings, the switch between screens, the engine's lifetime and refresh task
 │  ├─ Identity.swift       the private key, parsed by the core and kept in the Keychain
-│  ├─ Notifications.swift  local notifications for messages that arrive in the background
+│  ├─ Notifications.swift  local notifications for messages that arrive in the background, and taps on them
 │  ├─ Sync/                the tlxd port
 │  │  ├─ Relay.swift       the relay address, and get and put in tlx terms
 │  │  ├─ Storage.swift     sync.db: tlxd's schema, saving messages, the outbox queries

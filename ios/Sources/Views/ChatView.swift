@@ -274,6 +274,7 @@ struct ChatView: View {
         guard scenePhase == .active, bottomSequence > readMarker, openedUnread || !entries.contains(where: { $0.id == "new" }) else { return }
         store?.markRead(chatId: chat.id, sequence: bottomSequence)
         readMarker = store?.lastRead(chatId: chat.id) ?? readMarker
+        Task { await removeDeliveredNotifications(chatId: chat.id, upTo: readMarker) }
     }
 
     private func reload() {

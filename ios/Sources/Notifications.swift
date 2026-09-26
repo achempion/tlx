@@ -1,9 +1,25 @@
+import Observation
 import OSLog
 import UIKit
 import UserNotifications
 
 private let log = Logger(subsystem: "com.achempion.tlx", category: "notifications")
 private let notificationsEnabledKey = "notifications_enabled"
+
+@Observable
+final class Notifier: NSObject, UNUserNotificationCenterDelegate {
+    var chatToOpen: String?
+
+    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
+        guard response.actionIdentifier == UNNotificationDefaultActionIdentifier else { return }
+        let chatId = response.notification.request.content.threadIdentifier
+        await MainActor.run { chatToOpen = chatId }
+    }
+
+    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
+        [.list]
+    }
+}
 
 var notificationsEnabled: Bool {
     UserDefaults.standard.bool(forKey: notificationsEnabledKey)
@@ -54,4 +70,12 @@ func announcements(for saved: [Message], store: Store) throws -> [UNNotification
         content.threadIdentifier = chat.id
         return UNNotificationRequest(identifier: "m\(message.sequence)", content: content, trigger: nil)
     }
+}
+
+func removeDeliveredNotifications(chatId: String, upTo sequence: Int) async {
+    let center = UNUserNotificationCenter.current()
+    let read = await center.deliveredNotifications().filter {
+        $0.request.content.threadIdentifier == chatId && (Int($0.request.identifier.dropFirst()) ?? 0) <= sequence
+    }
+    center.removeDeliveredNotifications(withIdentifiers: read.map(\.request.identifier))
 }

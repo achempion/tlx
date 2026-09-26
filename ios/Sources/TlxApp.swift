@@ -1,5 +1,6 @@
 import BackgroundTasks
 import SwiftUI
+import UserNotifications
 
 let refreshTaskIdentifier = "com.achempion.tlx.refresh"
 private let lingerAfterBackgrounding: Duration = .seconds(25)
@@ -25,13 +26,20 @@ struct Settings: Equatable {
 struct TlxApp: App {
     @State private var settings = Settings.load()
     @State private var engine = Engine()
+    @State private var notifier: Notifier
     @Environment(\.scenePhase) private var scenePhase
+
+    init() {
+        let notifier = Notifier()
+        _notifier = State(initialValue: notifier)
+        UNUserNotificationCenter.current().delegate = notifier
+    }
 
     var body: some Scene {
         WindowGroup {
             if let settings {
                 NavigationStack {
-                    ChatListView(settings: settings)
+                    ChatListView(settings: settings, notifier: notifier)
                         .navigationTitle("Chats")
                         .toolbarTitleDisplayMode(.inlineLarge)
                         .toolbar {
