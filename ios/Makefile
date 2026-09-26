@@ -13,4 +13,8 @@ project: tlx.xcodeproj
 
 icon: Assets.xcassets/AppIcon.appiconset/icon.png
 
-.PHONY: core project icon
+release: tlx.xcodeproj
+	xcodebuild -project tlx.xcodeproj -scheme tlx -destination generic/platform=iOS -archivePath build/tlx.xcarchive -allowProvisioningUpdates archive
+	xcodebuild -exportArchive -archivePath build/tlx.xcarchive -exportOptionsPlist ExportOptions.plist -exportPath build -allowProvisioningUpdates
+
+.PHONY: core project icon release

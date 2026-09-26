@@ -15,6 +15,9 @@ targets:
     settings:
       INFOPLIST_FILE: Info.plist
       ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+      MARKETING_VERSION: "1.0"
+      CURRENT_PROJECT_VERSION: 1
+      DEVELOPMENT_TEAM: N3LZFHNRZJ
     dependencies:
       - framework: Core.xcframework
         embed: false
