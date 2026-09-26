@@ -35,7 +35,7 @@ queued successfully; delivery failures remain visible in the conversation.
 
 The engine runs while the app is on screen and lingers for about 25 seconds after it leaves, so a reply
 that is about to land still arrives. After that, iOS wakes the app for Background App Refresh whenever it
-decides to, usually a few times a day: one pass flushes the outbox and fetches new messages. Refresh is
+decides to, usually a few times a day, and one pass fetches new messages; sending stays a foreground activity. Refresh is
 opportunistic; it never runs after a force quit, in Low Power Mode, or when Background App Refresh is off in Settings.
 
 With notifications turned on in Settings, which is when the app asks iOS for permission, a message from

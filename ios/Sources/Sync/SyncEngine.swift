@@ -35,7 +35,6 @@ func backgroundSync(settings: Settings) async -> [Message] {
         try FileManager.default.createDirectory(at: syncDatabase.deletingLastPathComponent(), withIntermediateDirectories: true)
         let relay = Relay(address: settings.address, identity: settings.identity)
         let storage = try Storage(path: syncDatabase, ownPublicKey: settings.identity.publicKey)
-        await flushOutbox(relay: relay, storage: storage, identity: settings.identity)
         let saved = try await receive(relay: relay, storage: storage, identity: settings.identity,
                                       after: storage.lastSeenSequence(), deadline: backgroundRunBudget - .seconds(10)).saved
         log.info("background sync saved \(saved.count) messages")
