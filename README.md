@@ -15,6 +15,8 @@ stores what it can't read, and a daemon, `tlxd`, that syncs a local SQLite datab
 - **Chats without a server.** A chat is just its signed member list; clients
   derive it themselves.
 
+Clients: [terminal](#local-chat-client) · [iPhone](ios/README.md)
+
 <br>
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="screenshots/tui-dark.png">
