@@ -126,11 +126,11 @@ final class Store {
         return chats.map(\.chat)
     }
 
-    func messages(chatId: String, before: Int? = nil) throws -> [ChatMessage] {
+    func messages(chatId: String, before: Int? = nil, after: Int? = nil) throws -> [ChatMessage] {
         let rows = try db.query("select m.sequence, p.public_key, m.claimed_at, m.body "
                                 + "from d.messages m join d.seen_participants p on p.id = m.sender_id "
-                                + "where m.chat_id = ? and (? is null or m.sequence < ?) order by m.sequence desc limit ?",
-                                [chatId, before, before, page])
+                                + "where m.chat_id = ? and (? is null or m.sequence < ?) and m.sequence > ? order by m.sequence desc limit ?",
+                                [chatId, before, before, after ?? 0, after == nil ? page : -1])
         return rows.reversed().map { ChatMessage(sequence: $0.int(0), sender: $0.text(1), claimedAt: $0.int(2), body: $0.blob(3)) }
     }
 

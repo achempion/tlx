@@ -21,40 +21,62 @@ struct ChatView: View {
     @State private var editor: Composer?
     @State private var failure = ""
     @State private var didFocus = false
+    @State private var scrollID: String?
+    @State private var pageAnchor: String?
+    @State private var bottomSequence = -1
+    @State private var openedUnread = false
+    @Environment(\.scenePhase) private var scenePhase
     @FocusState private var composerFocused: Bool
 
     var body: some View {
-        ScrollViewReader { proxy in
+        GeometryReader { viewport in
             ScrollView {
                 LazyVStack(spacing: 3) {
                     if hasOlder {
-                        Button("Load older") { loadOlder() }
-                            .font(.footnote)
-                            .frame(maxWidth: .infinity)
+                        Color.clear.frame(height: 1)
+                            .onGeometryChange(for: Bool.self) { $0.frame(in: .global).maxY >= viewport.frame(in: .global).minY - 200 } action: {
+                                if $0 { loadOlder() }
+                            }
                     }
                     ForEach(entries) { entry in
                         row(entry).id(entry.id).padding(.top, entry.startsGroup ? 10 : 0)
+                            .onGeometryChange(for: Bool.self) { entry.id == "new" && viewport.frame(in: .global).intersects($0.frame(in: .global)) } action: {
+                                if $0 { openedUnread = true }
+                            }
                     }
+                    Color.clear.frame(height: 1).id("bottom")
+                        .onGeometryChange(for: Int.self) { viewport.frame(in: .global).contains($0.frame(in: .global)) ? messages.last?.sequence ?? 0 : -1 } action: {
+                            bottomSequence = $0
+                            markViewed()
+                        }
                 }
+                .scrollTargetLayout()
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
             }
-            .defaultScrollAnchor(.bottom)
-            .onChange(of: messages.isEmpty) {
-                if entries.contains(where: { $0.id == "new" }) {
-                    proxy.scrollTo("new", anchor: .top)
+            .scrollPosition(id: $scrollID, anchor: .top)
+            .onChange(of: messages.first?.sequence) {
+                if let pageAnchor { self.pageAnchor = nil; Task { await Task.yield(); scrollID = pageAnchor } }
+            }
+            .overlay(alignment: .bottom) {
+                if bottomSequence < 0 && messages.contains(where: { $0.sequence > readMarker && $0.sender != names.me }) {
+                    Button("↓ New messages") { Task { await Task.yield(); scrollID = "bottom" } }
+                        .padding(10).background(.regularMaterial, in: Capsule())
                 }
             }
+            .onChange(of: messages.isEmpty) {
+                scrollID = entries.contains(where: { $0.id == "new" }) ? "new" : "bottom"
+            }
             .onChange(of: pendings.count) { before, after in
-                if after > before, let last = entries.last {
-                    proxy.scrollTo(last.id, anchor: .bottom)
-                }
+                if after > before { scrollID = "bottom" }
             }
         }
         .safeAreaInset(edge: .bottom) { composer }
         .background(canvas)
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
+        .onChange(of: scenePhase) { markViewed() }
+        .onDisappear { bottomSequence = -1 }
         .toolbar {
             ToolbarItem(placement: .principal) {
                 NavigationLink {
@@ -248,23 +270,31 @@ struct ChatView: View {
 
     // --- store ---
 
+    private func markViewed() {
+        guard scenePhase == .active, bottomSequence > readMarker, openedUnread || !entries.contains(where: { $0.id == "new" }) else { return }
+        store?.markRead(chatId: chat.id, sequence: bottomSequence)
+        readMarker = store?.lastRead(chatId: chat.id) ?? readMarker
+    }
+
     private func reload() {
         guard let store else {
             return
         }
-        messages = (try? store.messages(chatId: chat.id)) ?? []
-        hasOlder = messages.count == page
-        pendings = (try? store.pending(chatId: chat.id)) ?? []
-        if let last = messages.last {
-            store.markRead(chatId: chat.id, sequence: last.sequence)
+        if let incoming = try? store.messages(chatId: chat.id, after: messages.last?.sequence) {
+            if messages.isEmpty { hasOlder = incoming.count == page }
+            messages += incoming
+            if !incoming.isEmpty && bottomSequence >= 0 { Task { await Task.yield(); scrollID = "bottom" } }
         }
+        pendings = (try? store.pending(chatId: chat.id)) ?? []
     }
 
     private func loadOlder() {
         guard let store, let oldest = messages.first else {
             return
         }
-        let older = (try? store.messages(chatId: chat.id, before: oldest.sequence)) ?? []
+        guard let older = try? store.messages(chatId: chat.id, before: oldest.sequence) else { return }
+        pageAnchor = scrollID
+        scrollID = nil
         hasOlder = older.count == page
         messages = older + messages
     }
