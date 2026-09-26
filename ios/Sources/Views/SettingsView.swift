@@ -89,7 +89,13 @@ struct SettingsView: View {
     private var keyLine: some View {
         switch parsed {
         case .success(let identity):
-            Text("ssh-ed25519 \(identity.publicKey)").font(.footnote.monospaced())
+            HStack(spacing: 12) {
+                Avatar(key: identity.publicKey)
+                    .accessibilityHidden(true)
+                // Zero-width spaces let the key break at any character, so it fills the lines next to the avatar.
+                Text("ssh-ed25519 \(identity.publicKey)".map(String.init).joined(separator: "\u{200B}"))
+                    .font(.footnote.monospaced())
+            }
         case .failure where privateKeyPEM.isEmpty:
             Text("Paste the private key from ~/.tlx/key").foregroundStyle(.secondary)
         case .failure(let error):
