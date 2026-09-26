@@ -34,7 +34,8 @@ struct SSH {
         var exitStatus = 0
     }
 
-    func run(_ command: String, stdin: Data = Data()) async throws -> Output {
+    func run(_ command: String, stdin: Data = Data(), deadline: Duration = .seconds(90)) async throws -> Output {
+        try Task.checkCancellation()
         let signingKey = try Curve25519.Signing.PrivateKey(rawRepresentation: privateKey)
         let firstError = FirstError()
         let connection = try await ClientBootstrap(group: eventLoopGroup)
@@ -51,28 +52,33 @@ struct SSH {
                 }
             }
             .connect(host: host, port: port).get()
-        let deadline = connection.eventLoop.scheduleTask(in: .seconds(90)) { connection.close(promise: nil) }
+        let expiry = connection.eventLoop.scheduleTask(in: TimeAmount(deadline)) { connection.close(promise: nil) }
         defer {
-            deadline.cancel()
+            expiry.cancel()
             connection.close(promise: nil)
         }
 
         let collector = SessionCollector(command: command, stdin: stdin)
         do {
-            let session = try await connection.pipeline.handler(type: NIOSSHHandler.self).flatMap { ssh in
-                let opened = connection.eventLoop.makePromise(of: Channel.self)
-                ssh.createChannel(opened) { session, _ in
-                    session.eventLoop.makeCompletedFuture {
-                        try session.pipeline.syncOperations.addHandler(collector)
+            try await withTaskCancellationHandler {
+                let session = try await connection.pipeline.handler(type: NIOSSHHandler.self).flatMap { ssh in
+                    let opened = connection.eventLoop.makePromise(of: Channel.self)
+                    ssh.createChannel(opened) { session, _ in
+                        session.eventLoop.makeCompletedFuture {
+                            try session.pipeline.syncOperations.addHandler(collector)
+                        }
                     }
-                }
-                return opened.futureResult
-            }.get()
-            try await session.closeFuture.get()
+                    return opened.futureResult
+                }.get()
+                try await session.closeFuture.get()
+            } onCancel: {
+                connection.close(promise: nil)
+            }
         } catch {
             throw firstError.error ?? error
         }
         guard collector.exited else {
+            try Task.checkCancellation()
             throw firstError.error ?? SSHError.disconnected
         }
         return collector.result

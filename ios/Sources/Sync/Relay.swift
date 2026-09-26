@@ -29,8 +29,8 @@ struct Relay {
         _ = try await ssh.run("")
     }
 
-    func get(after sequence: Int) async throws -> [(sequence: Int, blob: Data)] {
-        let output = try await ssh.run("get \(sequence)")
+    func get(after sequence: Int, deadline: Duration = .seconds(90)) async throws -> [(sequence: Int, blob: Data)] {
+        let output = try await ssh.run("get \(sequence)", deadline: deadline)
         guard output.exitStatus == 0 else {
             throw RelayError.refused(String(decoding: output.stderr, as: UTF8.self))
         }
