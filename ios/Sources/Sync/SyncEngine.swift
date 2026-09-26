@@ -27,14 +27,14 @@ func foregroundSync(settings: Settings, onSaved: @escaping @Sendable ([Message])
     }
 }
 
-let backgroundRunBudget: Duration = .seconds(30)
+let backgroundGetDeadline: Duration = .seconds(7)
 
 func backgroundSync(settings: Settings) async -> [Message] {
     do {
         let relay = Relay(address: settings.address, identity: settings.identity)
         let storage = try Storage(path: syncDatabase, ownPublicKey: settings.identity.publicKey)
         let saved = try await receive(relay: relay, storage: storage, identity: settings.identity,
-                                      after: storage.lastSeenSequence(), deadline: backgroundRunBudget - .seconds(10)).saved
+                                      after: storage.lastSeenSequence(), deadline: backgroundGetDeadline).saved
         log.info("background sync saved \(saved.count) messages")
         return saved
     } catch {
