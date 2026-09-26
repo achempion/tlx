@@ -28,10 +28,13 @@ struct TlxApp: App {
                 NavigationStack {
                     ChatListView(settings: settings)
                         .navigationTitle("Chats")
+                        .toolbarTitleDisplayMode(.inlineLarge)
                         .toolbar {
-                            ToolbarItem(placement: .topBarLeading) {
-                                NavigationLink("Settings") {
+                            ToolbarItem(placement: .topBarTrailing) {
+                                NavigationLink {
                                     SettingsView(settings: $settings)
+                                } label: {
+                                    Label("Settings", systemImage: "gearshape")
                                 }
                             }
                         }
