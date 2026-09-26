@@ -17,6 +17,8 @@ struct Chat: Identifiable {
     let lastSender: String
     let lastClaimedAt: Int
     let lastBody: Data
+    var isTopic: Bool { !chatTag(id).isEmpty }
+    var isGroup: Bool { isTopic || participants.count > 1 }
 }
 
 struct ChatMessage: Identifiable {

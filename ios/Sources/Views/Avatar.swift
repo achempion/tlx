@@ -3,15 +3,14 @@ import SwiftUI
 
 struct Avatar: View {
     let key: String
+    var chat: String?
     var topic = false
     var size: CGFloat = 40
 
     var body: some View {
-        let digest = Data(SHA256.hash(data: Data(key.utf8)))
-        let hue = Double(digest[0] % 12) / 12
-        let cells = glyph(digest)
-        let ink = tone(hue, light: (0.6, 0.5), dark: (0.35, 0.95))
-        let paper = tone(hue, light: (0.25, 0.97), dark: (0.5, 0.32))
+        let cells = glyph(Data(SHA256.hash(data: Data(key.utf8))))
+        let ink = tone(hue(key), light: (0.6, 0.5), dark: (0.35, 0.95))
+        let paper = tone(hue(chat ?? key), light: (0.25, 0.97), dark: (0.5, 0.32))
         let shape = topic ? AnyShape(RoundedRectangle(cornerRadius: size / 4)) : AnyShape(Circle())
         return Canvas { context, canvas in
             let unit: Double = canvas.width / 8
@@ -51,7 +50,11 @@ struct Avatar: View {
 }
 
 func color(of key: String) -> Color {
-    tone(Double(Data(SHA256.hash(data: Data(key.utf8)))[0] % 12) / 12, light: (0.6, 0.55), dark: (0.5, 0.85))
+    tone(hue(key), light: (0.6, 0.55), dark: (0.5, 0.85))
+}
+
+private func hue(_ key: String) -> Double {
+    Double(Data(SHA256.hash(data: Data(key.utf8)))[0] % 12) / 12
 }
 
 private func tone(_ hue: Double, light: (saturation: Double, brightness: Double), dark: (saturation: Double, brightness: Double)) -> Color {

@@ -20,7 +20,7 @@ struct ChatListView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                    if isGroup(chat) {
+                    if chat.isGroup {
                         Text(names.of(chat.lastSender))
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
@@ -69,12 +69,7 @@ struct ChatListView: View {
         }
     }
 
-    private func isGroup(_ chat: Chat) -> Bool {
-        !chatTag(chat.id).isEmpty || chat.participants.count > 1
-    }
-
     private func avatar(_ chat: Chat) -> some View {
-        let topic = !chatTag(chat.id).isEmpty
-        return Avatar(key: topic ? chat.id : (chat.participants.first ?? settings.identity.publicKey), topic: topic)
+        Avatar(key: chat.isTopic ? chat.id : (chat.participants.first ?? settings.identity.publicKey), chat: chat.id, topic: chat.isTopic)
     }
 }
