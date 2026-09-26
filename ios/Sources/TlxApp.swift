@@ -114,6 +114,7 @@ final class Engine {
     private func stop() {
         sync?.cancel()
         sync = nil
+        lingerTimer?.cancel()
         lingerTimer = nil
         endBackgroundTask()
     }
