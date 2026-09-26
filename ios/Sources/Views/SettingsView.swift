@@ -49,22 +49,20 @@ struct SettingsView: View {
                     Text(failure).foregroundStyle(.red)
                 }
             }
-            if settings != nil {
-                Section {
-                    Toggle("Notify about new messages", isOn: $notifications)
-                } footer: {
-                    if denied {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("Notifications for tlx are turned off in iOS Settings.")
-                            Button("Open iOS Settings") {
-                                if let url = URL(string: UIApplication.openNotificationSettingsURLString) {
-                                    UIApplication.shared.open(url)
-                                }
+            Section {
+                Toggle("Notify about new messages", isOn: $notifications)
+            } footer: {
+                if denied {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Notifications for tlx are turned off in iOS Settings.")
+                        Button("Open iOS Settings") {
+                            if let url = URL(string: UIApplication.openNotificationSettingsURLString) {
+                                UIApplication.shared.open(url)
                             }
                         }
-                    } else {
-                        Text("A message from someone in a chat pings you while the app is in the background. Topics never do.")
                     }
+                } else {
+                    Text("A message from someone in a chat pings you while the app is in the background. Topics never do.")
                 }
             }
         }
