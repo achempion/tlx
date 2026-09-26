@@ -8,6 +8,7 @@ struct ChatView: View {
     let chat: Chat
     let chats: [Chat]
     let names: Names
+    var focusComposer = false
 
     private var title: String { names.chat(chat, among: chats) }
     private var contactKey: String { chat.participants.first ?? names.me }
@@ -17,7 +18,10 @@ struct ChatView: View {
     @State private var pendings: [Pending] = []
     @State private var hasOlder = false
     @State private var readMarker = 0
-    @State private var draft = ""
+    @State private var editor: Composer?
+    @State private var failure = ""
+    @State private var didFocus = false
+    @FocusState private var composerFocused: Bool
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -84,11 +88,22 @@ struct ChatView: View {
             }
         }
         .task {
-            guard let store = try? Store(ownPublicKey: names.me) else {
-                return
+            if store == nil {
+                do {
+                    let store = try Store(ownPublicKey: names.me)
+                    editor = try Composer(store: store, chatId: chat.id)
+                    self.store = store
+                    readMarker = store.lastRead(chatId: chat.id)
+                } catch {
+                    failure = "Couldn’t open the conversation: \(error.localizedDescription)"
+                    return
+                }
             }
-            self.store = store
-            readMarker = store.lastRead(chatId: chat.id)
+            guard let store else { return }
+            if focusComposer && !didFocus {
+                composerFocused = true
+                didFocus = true
+            }
             var version = -1
             while !Task.isCancelled {
                 let current = store.dataVersion()
@@ -204,19 +219,28 @@ struct ChatView: View {
     }
 
     private var composer: some View {
-        HStack(alignment: .bottom, spacing: 8) {
-            TextField("Message \(title)", text: $draft, axis: .vertical)
-                .lineLimit(1...6)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .modifier(Floating(shape: AnyShape(Capsule())))
-            Button(action: send) {
-                Image(systemName: "arrow.up")
-                    .font(.body.weight(.semibold))
-                    .frame(width: 40, height: 40)
+        VStack(spacing: 6) {
+            let error = editor?.failure.isEmpty == false ? editor?.failure ?? "" : failure
+            if !error.isEmpty {
+                Text(error).font(.footnote).foregroundStyle(.red)
             }
-            .modifier(Floating(shape: AnyShape(Circle())))
-            .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            HStack(alignment: .bottom, spacing: 8) {
+                TextField("Message \(title)", text: Binding(get: { editor?.text ?? "" }, set: { editor?.edit($0) }), axis: .vertical)
+                    .lineLimit(1...6)
+                    .focused($composerFocused)
+                    .disabled(editor == nil)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .modifier(Floating(shape: AnyShape(RoundedRectangle(cornerRadius: 22)), interactive: false))
+                Button(action: send) {
+                    Image(systemName: "arrow.up")
+                        .font(.body.weight(.semibold))
+                        .frame(width: 40, height: 40)
+                }
+                .accessibilityLabel("Send message")
+                .modifier(Floating(shape: AnyShape(Circle())))
+                .disabled(editor?.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false)
+            }
         }
         .padding(.horizontal, 12)
         .padding(.bottom, 8)
@@ -246,12 +270,7 @@ struct ChatView: View {
     }
 
     private func send() {
-        let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty, let store else {
-            return
-        }
-        try? store.send(chatId: chat.id, body: Data(text.utf8))
-        draft = ""
+        guard let store, editor?.send() == true else { return }
         pendings = (try? store.pending(chatId: chat.id)) ?? []
     }
 }
@@ -262,15 +281,22 @@ private func shade(light: CGFloat, dark: CGFloat) -> Color {
 
 private struct Floating: ViewModifier {
     let shape: AnyShape
+    var interactive = true
 
     func body(content: Content) -> some View {
         if #available(iOS 26, *) {
-            content.glassEffect(.regular.interactive(), in: shape)
+            if interactive {
+                content.glassEffect(.regular.interactive(), in: shape)
+            } else {
+                content.background {
+                    Color.clear.glassEffect(.regular, in: shape).allowsHitTesting(false)
+                }
+            }
         } else {
             let rim = LinearGradient(colors: [.white.opacity(0.35), .white.opacity(0.05)], startPoint: .top, endPoint: .bottom)
             content
                 .background(.regularMaterial, in: shape)
-                .overlay(shape.stroke(rim, lineWidth: 0.5))
+                .overlay(shape.stroke(rim, lineWidth: 0.5).allowsHitTesting(false))
         }
     }
 }

@@ -5,6 +5,11 @@ struct ChatListView: View {
 
     @State private var chats: [Chat] = []
     @State private var names: Names
+    @State private var store: Store?
+    @State private var creation: NewConversation?
+    @State private var createdChat: Chat?
+    @State private var openedChat: Chat?
+    @State private var failure = ""
 
     init(settings: Settings) {
         self.settings = settings
@@ -19,6 +24,11 @@ struct ChatListView: View {
                 row(chat)
             }
             .listRowSeparator(.hidden)
+            .swipeActions(allowsFullSwipe: false) {
+                if chat.isDraft {
+                    Button("Discard draft", role: .destructive) { discard(chat) }
+                }
+            }
         }
         .listStyle(.plain)
         .overlay {
@@ -26,22 +36,75 @@ struct ChatListView: View {
                 ContentUnavailableView("No chats yet", systemImage: "bubble.left.and.bubble.right")
             }
         }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button("New chat", systemImage: "bubble.left.and.bubble.right") { creation = .chat }
+                    Button("New topic", systemImage: "number") { creation = .topic }
+                } label: {
+                    Label("New", systemImage: "square.and.pencil")
+                }
+                .accessibilityLabel("New conversation")
+            }
+        }
+        .sheet(item: $creation, onDismiss: {
+            if let createdChat {
+                openedChat = createdChat
+                self.createdChat = nil
+            }
+        }) { mode in
+            NewConversationView(mode: mode, names: names) { chat in
+                createdChat = chat
+                reload()
+            }
+        }
+        .navigationDestination(item: $openedChat) { chat in
+            ChatView(chat: chat, chats: chats, names: names, focusComposer: true)
+        }
+        .alert("Couldn’t update chats", isPresented: Binding(get: { !failure.isEmpty }, set: { if !$0 { failure = "" } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(failure)
+        }
         .task(id: settings) {
-            guard let store = try? Store(ownPublicKey: settings.identity.publicKey) else {
+            do {
+                store = try Store(ownPublicKey: settings.identity.publicKey)
+            } catch {
+                failure = error.localizedDescription
                 return
             }
+            guard let store else { return }
             var version = -1
+            var uiVersion = -1
             while !Task.isCancelled {
                 let current = store.dataVersion()
-                if current != version {
+                let currentUI = store.uiDataVersion()
+                if current != version || currentUI != uiVersion {
                     version = current
-                    chats = (try? store.chats()) ?? []
-                    if let aliases = try? store.aliases() {
-                        names.aliases = aliases
-                    }
+                    uiVersion = currentUI
+                    reload()
                 }
                 try? await Task.sleep(for: .seconds(0.5))
             }
+        }
+    }
+
+    private func reload() {
+        guard let store else { return }
+        do {
+            chats = try store.chats()
+            names.aliases = try store.aliases()
+        } catch {
+            failure = error.localizedDescription
+        }
+    }
+
+    private func discard(_ chat: Chat) {
+        do {
+            try store?.discardDraft(chatId: chat.id)
+            reload()
+        } catch {
+            failure = error.localizedDescription
         }
     }
 
@@ -58,16 +121,16 @@ struct ChatListView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                    if chat.isGroup {
+                    if chat.isGroup && !chat.lastSender.isEmpty && chat.draft.isEmpty {
                         Text(names.of(chat.lastSender))
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
                     }
                     HStack(alignment: .firstTextBaseline) {
-                        Text(preview(chat.lastBody))
+                        Text(summary(chat))
                             .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(chat.pending?.error != nil && chat.draft.isEmpty ? Color.red : .secondary)
                             .lineLimit(1)
                         Spacer()
                         if chat.unread > 0 {
@@ -82,6 +145,16 @@ struct ChatListView: View {
                 }
             }
             .padding(.vertical, 2)
+    }
+
+    private func summary(_ chat: Chat) -> String {
+        if !chat.draft.isEmpty { return "Draft: " + chat.draft }
+        if chat.isDraft { return "Draft" }
+        if let pending = chat.pending {
+            let status = pending.error != nil ? "Failed to send" : (pending.sent ? "Sent" : "Sending…")
+            return status + " · " + preview(pending.body)
+        }
+        return preview(chat.lastBody)
     }
 
     private func avatar(_ chat: Chat) -> some View {

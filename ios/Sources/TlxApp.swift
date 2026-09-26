@@ -29,8 +29,10 @@ struct TlxApp: App {
                     ChatListView(settings: settings)
                         .navigationTitle("Chats")
                         .toolbar {
-                            NavigationLink("Settings") {
-                                SettingsView(settings: $settings)
+                            ToolbarItem(placement: .topBarLeading) {
+                                NavigationLink("Settings") {
+                                    SettingsView(settings: $settings)
+                                }
                             }
                         }
                 }

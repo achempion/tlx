@@ -14,11 +14,22 @@ make core project
 xcodebuild -project tlx.xcodeproj -scheme tlx -destination 'platform=iOS Simulator,name=iPhone 16' build
 ```
 
-Run the local-name persistence and shared-name update tests with:
+Run the local-name, conversation, and draft tests with:
 
 ```bash
 xcodebuild -project tlx.xcodeproj -scheme tlx -destination 'platform=iOS Simulator,name=iPhone 16' test
 ```
+
+## Conversations
+
+Use **New** on the Chats screen to start a chat or a named topic. Choose known contacts or paste
+an Ed25519 public key, with or without the `ssh-ed25519` prefix. Each creation makes a separate
+conversation; topic names are shared with its participants, while contact aliases stay local.
+
+Creating a conversation sends nothing. Its participants and draft text are saved locally, and it
+stays in the chat list while offline. The first message starts the conversation for its recipients.
+Unsent conversations can be discarded by swiping their row. Drafts clear only after a message is
+queued successfully; delivery failures remain visible in the conversation.
 
 ## File structure
 
@@ -39,6 +50,8 @@ ios/
 │  │  ├─ SettingsView.swift  host, port and the pasted key
 │  │  ├─ ChatListView.swift  the chats
 │  │  ├─ ChatView.swift    one chat and its composer
+│  │  ├─ Composer.swift    saved draft text and sending without losing a failed draft
+│  │  ├─ NewConversationView.swift  topic names, participant selection and public-key entry
 │  │  ├─ ProfileView.swift  a person's public key and local name editor
 │  │  └─ ChatDetailsView.swift  a group's participants, linked to their profiles
 │  └─ Lib/                 one thin layer each over a library nothing else touches
