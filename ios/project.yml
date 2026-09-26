@@ -11,9 +11,10 @@ targets:
   tlx:
     type: application
     platform: iOS
-    sources: [Sources]
+    sources: [Sources, Assets.xcassets]
     settings:
       INFOPLIST_FILE: Info.plist
+      ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     dependencies:
       - framework: Core.xcframework
         embed: false
