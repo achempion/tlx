@@ -8,6 +8,7 @@ final class SQLite {
 
     init(path: URL) throws {
         try check(sqlite3_open(path.path, &db))
+        sqlite3_busy_timeout(db, 5000)
     }
 
     deinit {
