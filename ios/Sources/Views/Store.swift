@@ -19,9 +19,28 @@ struct Chat: Identifiable {
     let lastBody: Data
 }
 
+struct ChatMessage: Identifiable {
+    let sequence: Int
+    let sender: String
+    let claimedAt: Int
+    let body: Data
+    var id: Int { sequence }
+}
+
+struct Pending: Identifiable {
+    let claimedAt: Int
+    let body: Data
+    let sent: Bool
+    let error: String?
+    var id: Int { claimedAt }
+}
+
+let page = 100
+
 final class Store {
     private let db: SQLite
     let me: String
+    private var lastClaimedAt = 0
 
     init(ownPublicKey: String) throws {
         me = ownPublicKey
@@ -54,6 +73,34 @@ final class Store {
             Chat(id: row.text(0), lastSequence: row.int(1), unread: row.int(5), participants: participants[row.text(0)] ?? [],
                  lastSender: row.text(2), lastClaimedAt: row.int(3), lastBody: row.blob(4))
         }
+    }
+
+    func messages(chatId: String, before: Int? = nil) throws -> [ChatMessage] {
+        let rows = try db.query("select m.sequence, p.public_key, m.claimed_at, m.body "
+                                + "from d.messages m join d.seen_participants p on p.id = m.sender_id "
+                                + "where m.chat_id = ? and (? is null or m.sequence < ?) order by m.sequence desc limit ?",
+                                [chatId, before, before, page])
+        return rows.reversed().map { ChatMessage(sequence: $0.int(0), sender: $0.text(1), claimedAt: $0.int(2), body: $0.blob(3)) }
+    }
+
+    func pending(chatId: String) throws -> [Pending] {
+        try db.query("select claimed_at, body, sent_at is not null, error from d.outbox where chat_id = ? order by claimed_at", [chatId])
+            .map { Pending(claimedAt: $0.int(0), body: $0.blob(1), sent: $0.int(2) == 1, error: $0.text(3).isEmpty ? nil : $0.text(3)) }
+    }
+
+    func send(chatId: String, body: Data, recipients: [String]? = nil) throws {
+        lastClaimedAt = max(Int(Date().timeIntervalSince1970 * 1_000_000_000), lastClaimedAt + 1)
+        _ = try db.run("insert into d.outbox (claimed_at, chat_id, recipient_public_keys, body) values (?, ?, ?, ?)",
+                       [lastClaimedAt, chatId, recipients?.joined(separator: " "), body])
+    }
+
+    func lastRead(chatId: String) -> Int {
+        (try? db.query("select sequence from read where chat_id = ?", [chatId]))?.first?.int(0) ?? 0
+    }
+
+    func markRead(chatId: String, sequence: Int) {
+        _ = try? db.run("insert into read (chat_id, sequence) values (?, ?) "
+                        + "on conflict (chat_id) do update set sequence = max(sequence, excluded.sequence)", [chatId, sequence])
     }
 
     func aliases() throws -> [String: String] {
