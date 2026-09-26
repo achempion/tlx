@@ -11,6 +11,23 @@ struct SSH {
     let port: Int
     let privateKey: Data
 
+    static func publicKey(_ input: String) throws -> String {
+        let input = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        let words = input.split(whereSeparator: \.isWhitespace)
+        guard !input.contains(where: \.isNewline), !words.isEmpty else { throw SSHError.invalidPublicKey }
+        let encoded: String
+        if words.count == 1 {
+            encoded = String(words[0])
+        } else {
+            guard words[0] == "ssh-ed25519" else { throw SSHError.invalidPublicKey }
+            encoded = String(words[1])
+        }
+        guard let key = try? NIOSSHPublicKey(openSSHPublicKey: "ssh-ed25519 " + encoded) else {
+            throw SSHError.invalidPublicKey
+        }
+        return String(openSSHPublicKey: key).split(separator: " ")[1].description
+    }
+
     struct Output {
         var stdout = Data()
         var stderr = Data()
@@ -63,12 +80,14 @@ struct SSH {
 }
 
 enum SSHError: LocalizedError {
+    case invalidPublicKey
     case hostKeyChanged
     case authenticationFailed
     case disconnected
 
     var errorDescription: String? {
         switch self {
+        case .invalidPublicKey: return "Paste a valid Ed25519 public key."
         case .hostKeyChanged: return "the host key changed"
         case .authenticationFailed: return "the key was not accepted"
         case .disconnected: return "the connection was closed"
