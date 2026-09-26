@@ -9,6 +9,7 @@ struct ChatListView: View {
     @State private var creation: NewConversation?
     @State private var createdChat: Chat?
     @State private var openedChat: Chat?
+    @State private var focusComposerOnOpen = false
     @State private var failure = ""
 
     init(settings: Settings) {
@@ -18,11 +19,14 @@ struct ChatListView: View {
 
     var body: some View {
         List(chats) { chat in
-            NavigationLink {
-                ChatView(chat: chat, chats: chats, names: names)
+            Button {
+                focusComposerOnOpen = false
+                openedChat = chat
             } label: {
                 row(chat)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
             .listRowSeparator(.hidden)
             .swipeActions(allowsFullSwipe: false) {
                 if chat.isDraft {
@@ -49,6 +53,7 @@ struct ChatListView: View {
         }
         .sheet(item: $creation, onDismiss: {
             if let createdChat {
+                focusComposerOnOpen = true
                 openedChat = createdChat
                 self.createdChat = nil
             }
@@ -59,7 +64,7 @@ struct ChatListView: View {
             }
         }
         .navigationDestination(item: $openedChat) { chat in
-            ChatView(chat: chat, chats: chats, names: names, focusComposer: true)
+            ChatView(chat: chat, chats: chats, names: names, focusComposer: focusComposerOnOpen)
         }
         .alert("Couldn’t update chats", isPresented: Binding(get: { !failure.isEmpty }, set: { if !$0 { failure = "" } })) {
             Button("OK", role: .cancel) {}
@@ -120,6 +125,8 @@ struct ChatListView: View {
                         Text(when(chat.lastClaimedAt))
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
                     }
                     if chat.isGroup && !chat.lastSender.isEmpty && chat.draft.isEmpty {
                         Text(names.of(chat.lastSender))
