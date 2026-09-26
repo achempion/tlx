@@ -14,6 +14,12 @@ make core project
 xcodebuild -project tlx.xcodeproj -scheme tlx -destination 'platform=iOS Simulator,name=iPhone 16' build
 ```
 
+Run the local-name persistence and shared-name update tests with:
+
+```bash
+xcodebuild -project tlx.xcodeproj -scheme tlx -destination 'platform=iOS Simulator,name=iPhone 16' test
+```
+
 ## File structure
 
 ```
@@ -32,7 +38,9 @@ ios/
 │  │  ├─ Store.swift       the UI's queries over sync.db and ui.db
 │  │  ├─ SettingsView.swift  host, port and the pasted key
 │  │  ├─ ChatListView.swift  the chats
-│  │  └─ ChatView.swift    one chat and its composer
+│  │  ├─ ChatView.swift    one chat and its composer
+│  │  ├─ ProfileView.swift  a person's public key and local name editor
+│  │  └─ ChatDetailsView.swift  a group's participants, linked to their profiles
 │  └─ Lib/                 one thin layer each over a library nothing else touches
 │     ├─ SSH.swift         one command over swift-nio-ssh: key authentication, pinned host key, output
 │     └─ SQLite.swift      open, execute, run, query over the C API

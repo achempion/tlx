@@ -6,8 +6,11 @@ private let bubble = shade(light: 0.93, dark: 0.17)
 
 struct ChatView: View {
     let chat: Chat
-    let title: String
+    let chats: [Chat]
     let names: Names
+
+    private var title: String { names.chat(chat, among: chats) }
+    private var contactKey: String { chat.participants.first ?? names.me }
 
     @State private var store: Store?
     @State private var messages: [ChatMessage] = []
@@ -49,16 +52,34 @@ struct ChatView: View {
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if chat.isTopic {
-                ToolbarItem(placement: .principal) {
+            ToolbarItem(placement: .principal) {
+                NavigationLink {
+                    if chat.isGroup {
+                        ChatDetailsView(chat: chat, chats: chats, names: names)
+                    } else {
+                        ProfileView(publicKey: contactKey, names: names)
+                    }
+                } label: {
                     VStack(spacing: 0) {
-                        Text(title).font(.headline)
-                        Text(names.people(chat)).font(.caption).foregroundStyle(.secondary)
+                        Text(title).font(.headline).lineLimit(1)
+                        if chat.isGroup {
+                            Text(chat.isTopic ? names.people(chat) : "\(chat.participants.count + 1) participants")
+                                .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                        }
                     }
                 }
-            } else {
+                .buttonStyle(.plain)
+                .accessibilityLabel(chat.isGroup ? "Chat details for \(title)" : "Profile for \(names.of(contactKey))")
+            }
+            if !chat.isGroup {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Avatar(key: chat.participants.first ?? names.me, chat: chat.id, size: 32)
+                    NavigationLink {
+                        ProfileView(publicKey: contactKey, names: names)
+                    } label: {
+                        Avatar(key: contactKey, chat: chat.id, size: 32)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Profile for \(names.of(contactKey))")
                 }
             }
         }
@@ -140,14 +161,29 @@ struct ChatView: View {
                 if mine {
                     Spacer(minLength: 48)
                 } else if chat.isGroup {
-                    Avatar(key: entry.sender, chat: chat.id, size: 32).opacity(entry.startsGroup ? 1 : 0)
+                    NavigationLink {
+                        ProfileView(publicKey: entry.sender, names: names)
+                    } label: {
+                        Avatar(key: entry.sender, chat: chat.id, size: 32)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Profile for \(names.of(entry.sender))")
+                    .opacity(entry.startsGroup ? 1 : 0)
+                    .allowsHitTesting(entry.startsGroup)
+                    .accessibilityHidden(!entry.startsGroup)
                 }
                 VStack(alignment: mine ? .trailing : .leading, spacing: 3) {
                     if entry.startsGroup && chat.isGroup && !mine {
-                        Text(names.of(entry.sender))
-                            .font(.subheadline.weight(.semibold))
-                            .italic(names.aliases[entry.sender] == nil)
-                            .foregroundStyle(color(of: entry.sender))
+                        NavigationLink {
+                            ProfileView(publicKey: entry.sender, names: names)
+                        } label: {
+                            Text(names.of(entry.sender))
+                                .font(.subheadline.weight(.semibold))
+                                .italic(names.aliases[entry.sender] == nil)
+                                .foregroundStyle(color(of: entry.sender))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Profile for \(names.of(entry.sender))")
                     }
                     Text(entry.text)
                         .lineSpacing(2)

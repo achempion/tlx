@@ -34,6 +34,7 @@ struct TlxApp: App {
                             }
                         }
                 }
+                .id(settings.identity.publicKey)
                 .task(id: scenePhase == .active ? settings : nil) {
                     guard scenePhase == .active else {
                         return

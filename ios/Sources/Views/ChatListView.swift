@@ -4,12 +4,17 @@ struct ChatListView: View {
     let settings: Settings
 
     @State private var chats: [Chat] = []
-    @State private var names = Names(me: "", aliases: [:])
+    @State private var names: Names
+
+    init(settings: Settings) {
+        self.settings = settings
+        _names = State(initialValue: Names(me: settings.identity.publicKey))
+    }
 
     var body: some View {
         List(chats) { chat in
             NavigationLink {
-                ChatView(chat: chat, title: names.chat(chat, among: chats), names: names)
+                ChatView(chat: chat, chats: chats, names: names)
             } label: {
                 row(chat)
             }
@@ -31,7 +36,9 @@ struct ChatListView: View {
                 if current != version {
                     version = current
                     chats = (try? store.chats()) ?? []
-                    names = Names(me: store.me, aliases: (try? store.aliases()) ?? [:])
+                    if let aliases = try? store.aliases() {
+                        names.aliases = aliases
+                    }
                 }
                 try? await Task.sleep(for: .seconds(0.5))
             }
