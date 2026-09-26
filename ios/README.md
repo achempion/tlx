@@ -9,6 +9,8 @@
   <a href="../screenshots/ios-light.png">Light</a> · <a href="../screenshots/ios-dark.png">Dark</a>
 </p>
 
+Reach out to me if you want to download the same version from the AppStore.
+
 ## Build
 
 Needs Xcode, [XcodeGen](https://github.com/yonaskolb/XcodeGen), Go and
