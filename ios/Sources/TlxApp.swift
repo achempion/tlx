@@ -59,7 +59,7 @@ struct TlxApp: App {
         .onChange(of: settings) { engine.activate(settings) }
         .backgroundTask(.appRefresh(refreshTaskIdentifier)) {
             if let settings = Settings.load() {
-                _ = await backgroundSync(settings: settings)
+                await notify(about: await backgroundSync(settings: settings), me: settings.identity.publicKey)
             }
             scheduleRefresh()
         }
@@ -88,7 +88,7 @@ final class Engine {
         self.settings = settings
         sync = settings.map { settings in
             Task {
-                await foregroundSync(settings: settings) { _ in }
+                await foregroundSync(settings: settings) { await notify(about: $0, me: settings.identity.publicKey) }
             }
         }
     }

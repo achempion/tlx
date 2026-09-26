@@ -1,4 +1,5 @@
 import SwiftUI
+import UserNotifications
 
 struct SettingsView: View {
     @Binding var settings: Settings?
@@ -9,6 +10,8 @@ struct SettingsView: View {
     @State private var privateKeyPEM: String
     @State private var connecting = false
     @State private var failure = ""
+    @State private var notifications = notificationsEnabled
+    @State private var denied = false
 
     init(settings: Binding<Settings?>) {
         _settings = settings
@@ -45,6 +48,39 @@ struct SettingsView: View {
                 if !failure.isEmpty {
                     Text(failure).foregroundStyle(.red)
                 }
+            }
+            if settings != nil {
+                Section {
+                    Toggle("Notify about new messages", isOn: $notifications)
+                } footer: {
+                    if denied {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Notifications for tlx are turned off in iOS Settings.")
+                            Button("Open iOS Settings") {
+                                if let url = URL(string: UIApplication.openNotificationSettingsURLString) {
+                                    UIApplication.shared.open(url)
+                                }
+                            }
+                        }
+                    } else {
+                        Text("A message from someone in a chat pings you while the app is in the background. Topics never do.")
+                    }
+                }
+            }
+        }
+        .onChange(of: notifications) { _, on in
+            guard on != notificationsEnabled else { return }
+            Task {
+                let granted = await setNotificationsEnabled(on)
+                denied = on && !granted
+                notifications = granted
+            }
+        }
+        .task {
+            if notifications, await notificationsDenied() {
+                await setNotificationsEnabled(false)
+                notifications = false
+                denied = true
             }
         }
     }
