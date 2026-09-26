@@ -19,3 +19,18 @@ targets:
         embed: false
       - package: swift-nio-ssh
         product: NIOSSH
+  tlxTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [Tests]
+    settings:
+      GENERATE_INFOPLIST_FILE: YES
+    dependencies:
+      - target: tlx
+schemes:
+  tlx:
+    build:
+      targets:
+        tlx: all
+    test:
+      targets: [tlxTests]

@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import Observation
 
 let uiDatabase = URL.applicationSupportDirectory.appending(path: "ui.db")
 
@@ -44,10 +45,10 @@ final class Store {
     let me: String
     private var lastClaimedAt = 0
 
-    init(ownPublicKey: String) throws {
+    init(ownPublicKey: String, uiPath: URL = uiDatabase, syncPath: URL = syncDatabase) throws {
         me = ownPublicKey
-        db = try SQLite(path: uiDatabase)
-        _ = try db.run("attach database ? as d", [syncDatabase.path])
+        db = try SQLite(path: uiPath)
+        _ = try db.run("attach database ? as d", [syncPath.path])
         try db.execute(schema)
     }
 
@@ -108,11 +109,55 @@ final class Store {
     func aliases() throws -> [String: String] {
         Dictionary(uniqueKeysWithValues: try db.query("select public_key, name from alias").map { ($0.text(0), $0.text(1)) })
     }
+
+    func setAlias(publicKey: String, name: String) throws -> String {
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { throw AliasError.emptyName }
+        guard name.rangeOfCharacter(from: .newlines) == nil else { throw AliasError.multilineName }
+        guard try db.query("select 1 from alias where name = ? and public_key != ?", [name, publicKey]).isEmpty else {
+            throw AliasError.nameTaken
+        }
+        _ = try db.run("insert into alias (public_key, name) values (?, ?) "
+                        + "on conflict (public_key) do update set name = excluded.name", [publicKey, name])
+        return name
+    }
+
+    func removeAlias(publicKey: String) throws {
+        _ = try db.run("delete from alias where public_key = ?", [publicKey])
+    }
 }
 
-struct Names {
+enum AliasError: LocalizedError {
+    case emptyName, multilineName, nameTaken
+
+    var errorDescription: String? {
+        switch self {
+        case .emptyName: "Enter a name."
+        case .multilineName: "Keep the name on one line."
+        case .nameTaken: "That name already belongs to another contact."
+        }
+    }
+}
+
+@Observable
+final class Names {
     let me: String
-    let aliases: [String: String]
+    var aliases: [String: String]
+
+    init(me: String, aliases: [String: String] = [:]) {
+        self.me = me
+        self.aliases = aliases
+    }
+
+    func setAlias(publicKey: String, name: String, using store: Store) throws {
+        let saved = try store.setAlias(publicKey: publicKey, name: name)
+        aliases[publicKey] = saved
+    }
+
+    func removeAlias(publicKey: String, using store: Store) throws {
+        try store.removeAlias(publicKey: publicKey)
+        aliases.removeValue(forKey: publicKey)
+    }
 
     func of(_ publicKey: String) -> String {
         aliases[publicKey] ?? (publicKey == me ? "me" : String(fingerprint(publicKey).prefix(8)))
