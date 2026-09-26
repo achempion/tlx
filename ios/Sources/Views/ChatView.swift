@@ -55,6 +55,7 @@ struct ChatView: View {
                 .padding(.vertical, 8)
             }
             .scrollPosition(id: $scrollID, anchor: .top)
+            .defaultScrollAnchor(openedUnread || entries.contains(where: { $0.id == "new" }) ? nil : .bottom)
             .onChange(of: messages.first?.sequence) {
                 if let pageAnchor { self.pageAnchor = nil; Task { await Task.yield(); scrollID = pageAnchor } }
             }
@@ -65,7 +66,7 @@ struct ChatView: View {
                 }
             }
             .onChange(of: messages.isEmpty) {
-                scrollID = entries.contains(where: { $0.id == "new" }) ? "new" : "bottom"
+                if entries.contains(where: { $0.id == "new" }) { scrollID = "new" }
             }
             .onChange(of: pendings.count) { before, after in
                 if after > before { scrollID = "bottom" }
