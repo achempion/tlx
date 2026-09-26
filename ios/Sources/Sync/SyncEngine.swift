@@ -4,8 +4,10 @@ import Foundation
 let syncDatabase = URL.applicationSupportDirectory.appending(path: "sync.db")
 
 func resetDatabases() {
-    for suffix in ["", "-wal", "-shm"] {
-        try? FileManager.default.removeItem(atPath: syncDatabase.path + suffix)
+    for database in [syncDatabase, uiDatabase] {
+        for suffix in ["", "-wal", "-shm"] {
+            try? FileManager.default.removeItem(atPath: database.path + suffix)
+        }
     }
 }
 
