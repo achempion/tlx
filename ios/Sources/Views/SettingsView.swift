@@ -111,10 +111,10 @@ struct SettingsView: View {
         Task {
             do {
                 try await Relay(address: candidate.address, identity: identity).check()
+                try candidate.save()
                 if candidate != settings {
                     resetDatabases()
                 }
-                try candidate.save()
                 UIPasteboard.general.items = []
                 settings = candidate
                 dismiss()

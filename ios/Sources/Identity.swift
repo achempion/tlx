@@ -6,6 +6,7 @@ private let keychainItem: [String: Any] = [
     kSecClass as String: kSecClassGenericPassword,
     kSecAttrService as String: "tlx",
     kSecAttrAccount as String: "key",
+    kSecUseDataProtectionKeychain as String: true,
 ]
 
 struct Identity: Equatable {
@@ -35,13 +36,20 @@ struct Identity: Equatable {
     }
 
     func save() throws {
-        SecItemDelete(keychainItem as CFDictionary)
-        var item = keychainItem
-        item[kSecValueData as String] = Data(privateKeyPEM.utf8)
-        item[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-        let status = SecItemAdd(item as CFDictionary, nil)
-        guard status == errSecSuccess else {
+        let value = Data(privateKeyPEM.utf8)
+        let status = SecItemUpdate(keychainItem as CFDictionary, [kSecValueData as String: value] as CFDictionary)
+        if status == errSecSuccess {
+            return
+        }
+        guard status == errSecItemNotFound else {
             throw NSError(domain: NSOSStatusErrorDomain, code: Int(status))
+        }
+        var item = keychainItem
+        item[kSecValueData as String] = value
+        item[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        let addStatus = SecItemAdd(item as CFDictionary, nil)
+        guard addStatus == errSecSuccess else {
+            throw NSError(domain: NSOSStatusErrorDomain, code: Int(addStatus))
         }
     }
 }

@@ -1,5 +1,5 @@
-Core.xcframework: core/go.mod core/go.sum core/core.go
-	cd core && gomobile bind -target ios,iossimulator -o ../Core.xcframework .
+Core.xcframework: core/go.mod core/go.sum core/core.go Makefile
+	cd core && gomobile bind -target ios,iossimulator,maccatalyst -iosversion 17.0 -o ../Core.xcframework .
 
 tlx.xcodeproj: project.yml $(shell find Sources -name '*.swift')
 	xcodegen generate

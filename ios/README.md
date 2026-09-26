@@ -1,4 +1,4 @@
-# tlx for iPhone
+# tlx for iPhone and Mac
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../screenshots/ios-dark.png">
@@ -21,7 +21,7 @@ make core project
 open tlx.xcodeproj
 ```
 
-Then pick a simulator and press Run.
+Then pick an iPhone simulator or **My Mac (Mac Catalyst)** and press Run.
 
 ## Code map
 
@@ -30,6 +30,7 @@ ios/
 ├─ project.yml          XcodeGen definition; the .xcodeproj is generated from it
 ├─ Makefile             builds the Go core, generates the project, archives a release
 ├─ Info.plist           app metadata and background modes
+├─ Mac.entitlements     Mac sandbox, network, and Keychain access
 ├─ ExportOptions.plist  App Store Connect upload settings
 ├─ icon.py              draws the icon in Assets.xcassets/
 ├─ core/                Go: key parsing, age encryption, SSH signatures
