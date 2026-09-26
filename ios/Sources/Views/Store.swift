@@ -56,6 +56,7 @@ final class Store {
 
     init(ownPublicKey: String, uiPath: URL = uiDatabase, syncPath: URL = syncDatabase) throws {
         me = ownPublicKey
+        _ = try Storage(path: syncPath, ownPublicKey: ownPublicKey)   // creates the sync tables before the first sync does
         db = try SQLite(path: uiPath)
         _ = try db.run("attach database ? as d", [syncPath.path])
         try db.execute(schema)

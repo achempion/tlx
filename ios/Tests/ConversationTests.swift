@@ -180,6 +180,15 @@ final class ConversationTests: XCTestCase {
         XCTAssertTrue(try store.draftText(chatId: chat.id).isEmpty)
     }
 
+    func testChatListOpensBeforeTheFirstSyncInAFreshContainer() throws {
+        let fresh = directory.appending(path: "Application Support")
+        let first = try Store(ownPublicKey: me, uiPath: fresh.appending(path: "ui.db"), syncPath: fresh.appending(path: "sync.db"))
+        XCTAssertTrue(try first.chats().isEmpty, "The chat list must read an empty sync.db it created itself")
+        let syncing = try Storage(path: fresh.appending(path: "sync.db"), ownPublicKey: me)
+        XCTAssertEqual(syncing.lastSeenSequence(), 0)
+        XCTAssertTrue(try syncing.unsentOutbox().isEmpty)
+    }
+
     private func openStore() throws -> Store {
         try Store(ownPublicKey: me, uiPath: directory.appending(path: "ui.db"), syncPath: directory.appending(path: "sync.db"))
     }

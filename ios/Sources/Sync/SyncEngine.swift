@@ -15,7 +15,6 @@ func resetDatabases() {
 
 func foregroundSync(settings: Settings, onSaved: @escaping @Sendable ([Message]) async -> Void) async {
     do {
-        try FileManager.default.createDirectory(at: syncDatabase.deletingLastPathComponent(), withIntermediateDirectories: true)
         let relay = Relay(address: settings.address, identity: settings.identity)
         let receiving = try Storage(path: syncDatabase, ownPublicKey: settings.identity.publicKey)
         let sending = try Storage(path: syncDatabase, ownPublicKey: settings.identity.publicKey)
@@ -32,7 +31,6 @@ let backgroundRunBudget: Duration = .seconds(30)
 
 func backgroundSync(settings: Settings) async -> [Message] {
     do {
-        try FileManager.default.createDirectory(at: syncDatabase.deletingLastPathComponent(), withIntermediateDirectories: true)
         let relay = Relay(address: settings.address, identity: settings.identity)
         let storage = try Storage(path: syncDatabase, ownPublicKey: settings.identity.publicKey)
         let saved = try await receive(relay: relay, storage: storage, identity: settings.identity,

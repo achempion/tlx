@@ -7,6 +7,7 @@ final class SQLite {
     private var db: OpaquePointer?
 
     init(path: URL) throws {
+        try FileManager.default.createDirectory(at: path.deletingLastPathComponent(), withIntermediateDirectories: true)
         try check(sqlite3_open(path.path, &db))
         sqlite3_busy_timeout(db, 5000)
     }
