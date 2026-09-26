@@ -1,7 +1,9 @@
 import Core
 import Foundation
+import OSLog
 
 let syncDatabase = URL.applicationSupportDirectory.appending(path: "sync.db")
+private let log = Logger(subsystem: "com.achempion.tlx", category: "sync")
 
 func resetDatabases() {
     for database in [syncDatabase, uiDatabase] {
@@ -11,14 +13,14 @@ func resetDatabases() {
     }
 }
 
-func foregroundSync(settings: Settings) async {
+func foregroundSync(settings: Settings, onSaved: @escaping @Sendable ([Message]) async -> Void) async {
     do {
         try FileManager.default.createDirectory(at: syncDatabase.deletingLastPathComponent(), withIntermediateDirectories: true)
         let relay = Relay(address: settings.address, identity: settings.identity)
         let receiving = try Storage(path: syncDatabase, ownPublicKey: settings.identity.publicKey)
         let sending = try Storage(path: syncDatabase, ownPublicKey: settings.identity.publicKey)
         await withTaskGroup(of: Void.self) { group in
-            group.addTask { await listen(relay: relay, storage: receiving, identity: settings.identity) }
+            group.addTask { await listen(relay: relay, storage: receiving, identity: settings.identity, onSaved: onSaved) }
             group.addTask { await sendOutbox(relay: relay, storage: sending, identity: settings.identity) }
         }
     } catch {
@@ -26,25 +28,56 @@ func foregroundSync(settings: Settings) async {
     }
 }
 
-func listen(relay: Relay, storage: Storage, identity: Identity) async {
+let backgroundRunBudget: Duration = .seconds(30)
+
+func backgroundSync(settings: Settings) async -> [Message] {
+    do {
+        try FileManager.default.createDirectory(at: syncDatabase.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let relay = Relay(address: settings.address, identity: settings.identity)
+        let storage = try Storage(path: syncDatabase, ownPublicKey: settings.identity.publicKey)
+        await flushOutbox(relay: relay, storage: storage, identity: settings.identity)
+        let saved = try await receive(relay: relay, storage: storage, identity: settings.identity,
+                                      after: storage.lastSeenSequence(), deadline: backgroundRunBudget - .seconds(10)).saved
+        log.info("background sync saved \(saved.count) messages")
+        return saved
+    } catch {
+        log.error("background sync: \(error.localizedDescription)")
+        return []
+    }
+}
+
+func listen(relay: Relay, storage: Storage, identity: Identity, onSaved: ([Message]) async -> Void) async {
     var lastSeen = storage.lastSeenSequence()
     while !Task.isCancelled {
-        guard let blobs = try? await relay.get(after: lastSeen) else {
+        guard let pass = try? await receive(relay: relay, storage: storage, identity: identity, after: lastSeen) else {
             try? await Task.sleep(for: .seconds(2))
             continue
         }
-        for (sequence, blob) in blobs {
-            lastSeen = sequence
-            guard let message = decryptAndVerify(sequence: sequence, blob: blob, identity: identity) else {
-                continue
-            }
-            do {
-                try storage.save(message)
-            } catch {
-                print("message \(sequence): \(error.localizedDescription)")
-            }
+        lastSeen = pass.lastSeen
+        if !pass.saved.isEmpty {
+            await onSaved(pass.saved)
         }
     }
+}
+
+func receive(relay: Relay, storage: Storage, identity: Identity, after lastSeen: Int,
+             deadline: Duration = .seconds(90)) async throws -> (lastSeen: Int, saved: [Message]) {
+    var lastSeen = lastSeen
+    var saved: [Message] = []
+    for (sequence, blob) in try await relay.get(after: lastSeen, deadline: deadline) {
+        lastSeen = sequence
+        guard let message = decryptAndVerify(sequence: sequence, blob: blob, identity: identity) else {
+            continue
+        }
+        do {
+            if try storage.save(message) {
+                saved.append(message)
+            }
+        } catch {
+            print("message \(sequence): \(error.localizedDescription)")
+        }
+    }
+    return (lastSeen, saved)
 }
 
 func decryptAndVerify(sequence: Int, blob: Data, identity: Identity) -> Message? {
@@ -88,36 +121,40 @@ func decryptAndVerify(sequence: Int, blob: Data, identity: Identity) -> Message?
 
 func sendOutbox(relay: Relay, storage: Storage, identity: Identity) async {
     while !Task.isCancelled {
-        for row in (try? storage.unsentOutbox()) ?? [] {
-            let listed = row.recipientPublicKeys.isEmpty
-                ? (try? storage.recipientPublicKeys(chatId: row.chatId)) ?? [] : row.recipientPublicKeys
-            var recipients = unique([identity.publicKey] + listed)
-            var result = Relay.PutResult(error: "no other deliverable recipients")
-            while recipients.count > 1 {
-                guard let blob = signAndEncrypt(chatId: row.chatId, claimedAt: row.claimedAt,
-                                                recipientPublicKeys: recipients, body: row.body, identity: identity) else {
-                    result = Relay.PutResult(error: "cannot sign or encrypt")
-                    break
-                }
-                guard let attempt = try? await relay.put(recipientPublicKeys: recipients, blob: blob) else {
-                    result = Relay.PutResult()          // could not reach the relay: the row waits for a later pass
-                    break
-                }
-                result = attempt
-                if attempt.rejectedPublicKeys.isEmpty {
-                    break
-                }
-                try? storage.markRejected(publicKeys: attempt.rejectedPublicKeys)
-                recipients.removeAll { attempt.rejectedPublicKeys.contains($0) }
-                result = Relay.PutResult(error: "no other deliverable recipients")
-            }
-            if result.accepted {
-                try? storage.markSent(claimedAt: row.claimedAt)
-            } else if let error = result.error {
-                try? storage.markFailed(claimedAt: row.claimedAt, error: error)
-            }
-        }
+        await flushOutbox(relay: relay, storage: storage, identity: identity)
         try? await Task.sleep(for: .seconds(1))
+    }
+}
+
+func flushOutbox(relay: Relay, storage: Storage, identity: Identity) async {
+    for row in (try? storage.unsentOutbox()) ?? [] {
+        let listed = row.recipientPublicKeys.isEmpty
+            ? (try? storage.recipientPublicKeys(chatId: row.chatId)) ?? [] : row.recipientPublicKeys
+        var recipients = unique([identity.publicKey] + listed)
+        var result = Relay.PutResult(error: "no other deliverable recipients")
+        while recipients.count > 1 {
+            guard let blob = signAndEncrypt(chatId: row.chatId, claimedAt: row.claimedAt,
+                                            recipientPublicKeys: recipients, body: row.body, identity: identity) else {
+                result = Relay.PutResult(error: "cannot sign or encrypt")
+                break
+            }
+            guard let attempt = try? await relay.put(recipientPublicKeys: recipients, blob: blob) else {
+                result = Relay.PutResult()          // could not reach the relay: the row waits for a later pass
+                break
+            }
+            result = attempt
+            if attempt.rejectedPublicKeys.isEmpty {
+                break
+            }
+            try? storage.markRejected(publicKeys: attempt.rejectedPublicKeys)
+            recipients.removeAll { attempt.rejectedPublicKeys.contains($0) }
+            result = Relay.PutResult(error: "no other deliverable recipients")
+        }
+        if result.accepted {
+            try? storage.markSent(claimedAt: row.claimedAt)
+        } else if let error = result.error {
+            try? storage.markFailed(claimedAt: row.claimedAt, error: error)
+        }
     }
 }
 

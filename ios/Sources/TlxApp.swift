@@ -44,7 +44,7 @@ struct TlxApp: App {
                     guard scenePhase == .active else {
                         return
                     }
-                    await foregroundSync(settings: settings)
+                    await foregroundSync(settings: settings) { _ in }
                 }
             } else {
                 SettingsView(settings: $settings)
