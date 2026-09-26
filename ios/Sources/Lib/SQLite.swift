@@ -30,9 +30,12 @@ final class SQLite {
         let statement = try prepare(sql, parameters)
         defer { sqlite3_finalize(statement) }
         var rows: [Row] = []
-        while sqlite3_step(statement) == SQLITE_ROW {
+        var status = sqlite3_step(statement)
+        while status == SQLITE_ROW {
             rows.append(Row(statement))
+            status = sqlite3_step(statement)
         }
+        try check(status, expecting: SQLITE_DONE)
         return rows
     }
 
