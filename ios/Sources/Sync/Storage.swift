@@ -68,13 +68,15 @@ final class Storage: @unchecked Sendable {
         (try? db.query("select coalesce(max(sequence), 0) from messages"))?.first?.int(0) ?? 0
     }
 
-    func save(_ message: Message) throws {
+    @discardableResult
+    func save(_ message: Message) throws -> Bool {
         try db.execute("begin")
+        var inserted = 0
         do {
             let recipientIds = try message.recipientPublicKeys.map { try participantId(chatId: message.chatId, publicKey: $0) }
             let senderId = try participantId(chatId: message.chatId, publicKey: message.senderPublicKey)
-            let inserted = try db.run("insert or ignore into messages values (?, ?, ?, ?, ?, ?)",
-                                      [message.sequence, message.chatId, senderId, message.claimedAt, message.relayedAt, message.body])
+            inserted = try db.run("insert or ignore into messages values (?, ?, ?, ?, ?, ?)",
+                                  [message.sequence, message.chatId, senderId, message.claimedAt, message.relayedAt, message.body])
             if inserted > 0 {
                 for recipientId in recipientIds {
                     _ = try db.run("insert or ignore into message_recipients values (?, ?)", [message.sequence, recipientId])
@@ -91,6 +93,7 @@ final class Storage: @unchecked Sendable {
             try? db.execute("rollback")
             throw error
         }
+        return inserted > 0
     }
 
     func unsentOutbox() throws -> [OutboxRow] {
