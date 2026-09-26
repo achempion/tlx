@@ -8,6 +8,37 @@ struct ChatListView: View {
 
     var body: some View {
         List(chats) { chat in
+            NavigationLink {
+                ChatView(chat: chat, title: names.chat(chat, among: chats), names: names)
+            } label: {
+                row(chat)
+            }
+            .listRowSeparator(.hidden)
+        }
+        .listStyle(.plain)
+        .overlay {
+            if chats.isEmpty {
+                ContentUnavailableView("No chats yet", systemImage: "bubble.left.and.bubble.right")
+            }
+        }
+        .task(id: settings) {
+            guard let store = try? Store(ownPublicKey: settings.identity.publicKey) else {
+                return
+            }
+            var version = -1
+            while !Task.isCancelled {
+                let current = store.dataVersion()
+                if current != version {
+                    version = current
+                    chats = (try? store.chats()) ?? []
+                    names = Names(me: store.me, aliases: (try? store.aliases()) ?? [:])
+                }
+                try? await Task.sleep(for: .seconds(0.5))
+            }
+        }
+    }
+
+    private func row(_ chat: Chat) -> some View {
             HStack(spacing: 12) {
                 avatar(chat)
                 VStack(alignment: .leading, spacing: 2) {
@@ -44,29 +75,6 @@ struct ChatListView: View {
                 }
             }
             .padding(.vertical, 2)
-            .listRowSeparator(.hidden)
-        }
-        .listStyle(.plain)
-        .overlay {
-            if chats.isEmpty {
-                ContentUnavailableView("No chats yet", systemImage: "bubble.left.and.bubble.right")
-            }
-        }
-        .task(id: settings) {
-            guard let store = try? Store(ownPublicKey: settings.identity.publicKey) else {
-                return
-            }
-            var version = -1
-            while !Task.isCancelled {
-                let current = store.dataVersion()
-                if current != version {
-                    version = current
-                    chats = (try? store.chats()) ?? []
-                    names = Names(me: store.me, aliases: (try? store.aliases()) ?? [:])
-                }
-                try? await Task.sleep(for: .seconds(0.5))
-            }
-        }
     }
 
     private func avatar(_ chat: Chat) -> some View {
