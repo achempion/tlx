@@ -31,7 +31,13 @@ Reach out to me if you want to download the same version from the App Store.
 Needs Xcode, [XcodeGen](https://github.com/yonaskolb/XcodeGen), Go and
 [gomobile](https://pkg.go.dev/golang.org/x/mobile/cmd/gomobile).
 
+Set your own app bundle ID and Apple Developer team ID before generating the
+project. XcodeGen writes them into the generated, ignored `.xcodeproj`; neither
+value is stored in the tracked project configuration.
+
 ```bash
+export TLX_BUNDLE_ID=com.example.tlx
+export TLX_TEAM_ID=YOURTEAMID
 make core project
 open tlx.xcodeproj
 ```

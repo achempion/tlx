@@ -3,7 +3,7 @@ import Foundation
 import OSLog
 
 let syncDatabase = URL.applicationSupportDirectory.appending(path: "sync.db")
-private let log = Logger(subsystem: "com.achempion.tlx", category: "sync")
+private let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "tlx", category: "sync")
 
 func resetDatabases() {
     for database in [syncDatabase, uiDatabase] {

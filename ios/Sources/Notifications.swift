@@ -3,7 +3,7 @@ import OSLog
 import UIKit
 import UserNotifications
 
-private let log = Logger(subsystem: "com.achempion.tlx", category: "notifications")
+private let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "tlx", category: "notifications")
 private let notificationsEnabledKey = "notifications_enabled"
 
 @Observable

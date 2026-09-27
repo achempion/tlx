@@ -2,7 +2,7 @@ import BackgroundTasks
 import SwiftUI
 import UserNotifications
 
-let refreshTaskIdentifier = "com.achempion.tlx.refresh"
+let refreshTaskIdentifier = "\(Bundle.main.bundleIdentifier ?? "tlx").refresh"
 private let lingerAfterBackgrounding: Duration = .seconds(25)
 
 struct Settings: Equatable {

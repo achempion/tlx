@@ -6,7 +6,5 @@
 	<string>app-store-connect</string>
 	<key>destination</key>
 	<string>upload</string>
-	<key>teamID</key>
-	<string>N3LZFHNRZJ</string>
 </dict>
 </plist>
