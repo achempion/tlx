@@ -4,3 +4,14 @@ __pycache__/
 ios/Core.xcframework/
 ios/tlx.xcodeproj/
 ios/build/
+
+# macOS metadata
+.DS_Store
+._*
+.AppleDouble
+.LSOverride
+.Spotlight-V100
+.Trashes
+.fseventsd
+.TemporaryItems
+.VolumeIcon.icns

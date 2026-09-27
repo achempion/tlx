@@ -4,18 +4,37 @@ Encrypted messaging you can actually understand.
 
 Communicate with people you trust, away from the eyes of modern surveillance and large corporations.
 
-tlx is the smallest possible end-to-end encrypted messaging stack: a relay that
-stores what it can't read, and a daemon, `tlxd`, that syncs a local SQLite database with it.
+## Clients
 
-- **No new crypto.** SSH keys for identity, SSH for transport, [age](https://github.com/FiloSottile/age) for encryption,
-  SSH signatures for authorship.
-- **Small enough to audit.** The relay, sync daemon and Dockerfile together fit in under 500 lines.
-- **A server that knows little.** The relay sees encrypted blobs, who they are for and when.
-  Never content, never chats.
-- **Chats without a server.** A chat is just its signed member list; clients
-  derive it themselves.
+### iPhone
 
-Clients: [terminal](#local-chat-client) · [iPhone](ios/README.md)
+[Build and run on iPhone](ios/README.md).
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="screenshots/ios-dark.png">
+  <img src="screenshots/ios-light.png" alt="tlx on iPhone: chats, a topic conversation, and first-run settings" width="100%">
+</picture>
+
+<p align="center">
+  <a href="screenshots/ios-light.png">Light</a> · <a href="screenshots/ios-dark.png">Dark</a>
+</p>
+
+### Mac
+
+[Build and run on Mac](ios/README.md).
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="screenshots/mac-showcase-dark.png">
+  <img src="screenshots/mac-showcase-light.png" alt="tlx on Mac: chats, a topic conversation, and first-run settings" width="100%">
+</picture>
+
+<p align="center">
+  <a href="screenshots/mac-showcase-light.png">Light</a> · <a href="screenshots/mac-showcase-dark.png">Dark</a>
+</p>
+
+### Terminal
+
+[Set up the terminal client](#local-chat-client).
 
 <br>
 <picture>
@@ -27,6 +46,19 @@ Clients: [terminal](#local-chat-client) · [iPhone](ios/README.md)
   <a href="screenshots/tui-light.png">Light</a> · <a href="screenshots/tui-dark.png">Dark</a>
 </p>
 <br>
+
+## How it works
+
+tlx is the smallest possible end-to-end encrypted messaging stack: a relay that
+stores what it can't read, and a daemon, `tlxd`, that syncs a local SQLite database with it.
+
+- **No new crypto.** SSH keys for identity, SSH for transport, [age](https://github.com/FiloSottile/age) for encryption,
+  SSH signatures for authorship.
+- **Small enough to audit.** The relay, sync daemon and Dockerfile together fit in under 500 lines.
+- **A server that knows little.** The relay sees encrypted blobs, who they are for and when.
+  Never content, never chats.
+- **Chats without a server.** A chat is just its signed member list; clients
+  derive it themselves.
 
 ## Quickstart
 

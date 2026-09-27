@@ -13,7 +13,7 @@ import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 import tlxd  # noqa: E402
 import tui  # noqa: E402
