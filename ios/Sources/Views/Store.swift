@@ -47,7 +47,7 @@ struct Pending: Identifiable, Hashable {
     var id: Int { claimedAt }
 }
 
-let page = 100
+let messagePageSize = 100
 
 final class Store {
     private let db: SQLite
@@ -131,7 +131,7 @@ final class Store {
         let rows = try db.query("select m.sequence, p.public_key, m.claimed_at, m.body "
                                 + "from d.messages m join d.seen_participants p on p.id = m.sender_id "
                                 + "where m.chat_id = ? and (? is null or m.sequence < ?) and m.sequence > ? order by m.sequence desc limit ?",
-                                [chatId, before, before, after ?? 0, after == nil ? page : -1])
+                                [chatId, before, before, after ?? 0, after == nil ? messagePageSize : -1])
         return rows.reversed().map { ChatMessage(sequence: $0.int(0), sender: $0.text(1), claimedAt: $0.int(2), body: $0.blob(3)) }
     }
 

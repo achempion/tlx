@@ -7,6 +7,9 @@ struct ChatListView: View {
     @State private var chats: [Chat] = []
     @State private var names: Names
     @State private var sidebarStore: Store?
+    // SQLite data_version only observes writes from other connections.
+    @State private var sessionStore: Store?
+    @State private var session: ChatSession?
     @State private var creation: NewConversation?
     #if targetEnvironment(macCatalyst)
     @State private var detailPath: [ChatDestination] = []
@@ -38,8 +41,10 @@ struct ChatListView: View {
         .task(id: settings) {
             open(nil)
             sidebarStore = nil
+            sessionStore = nil
             do {
                 sidebarStore = try Store(ownPublicKey: settings.identity.publicKey)
+                sessionStore = try Store(ownPublicKey: settings.identity.publicKey)
             } catch {
                 failure = error.localizedDescription
                 return
@@ -209,9 +214,17 @@ struct ChatListView: View {
         }
     }
 
+    @ViewBuilder
     private func conversation(_ chat: Chat) -> some View {
-        ChatView(chat: chat, chats: chats, names: names, focusComposer: focusComposerOnOpen)
-            .id(chat.id)
+        if let session, session.chatId == chat.id {
+            let content = ChatView(chat: chat, session: session, chats: chats, names: names, focusComposer: focusComposerOnOpen)
+                .id(chat.id)
+            #if targetEnvironment(macCatalyst)
+            MacChatContent(content: content)
+            #else
+            content
+            #endif
+        }
     }
 
     private func startCreation(_ mode: NewConversation) {
@@ -220,6 +233,18 @@ struct ChatListView: View {
     }
 
     private func open(_ chat: Chat?, focusingComposer: Bool = false) {
+        let preparedSession: ChatSession?
+        do {
+            if let chat {
+                guard let sessionStore else { return }
+                preparedSession = openedChat?.id == chat.id ? session : try ChatSession(store: sessionStore, chatId: chat.id)
+            } else {
+                preparedSession = nil
+            }
+        } catch {
+            failure = error.localizedDescription
+            return
+        }
         var transaction = Transaction()
         #if targetEnvironment(macCatalyst)
         transaction.disablesAnimations = true
@@ -231,6 +256,7 @@ struct ChatListView: View {
             creation = nil
             showingSettings = false
             focusComposerOnOpen = focusingComposer
+            session = preparedSession
             openedChat = chat
         }
     }
