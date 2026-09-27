@@ -1,4 +1,3 @@
-import CryptoKit
 import XCTest
 @testable import tlx
 
@@ -6,9 +5,9 @@ final class NotificationTests: XCTestCase {
     private var directory: URL!
     private var store: Store!
     private var storage: Storage!
-    private let me = key(1)
-    private let bob = key(2)
-    private let alice = key(3)
+    private let me = testPublicKey(1)
+    private let bob = testPublicKey(2)
+    private let alice = testPublicKey(3)
 
     override func setUpWithError() throws {
         directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
@@ -58,10 +57,4 @@ final class NotificationTests: XCTestCase {
         Message(sequence: sequence, chatId: chat, recipientPublicKeys: recipients, senderPublicKey: sender,
                 claimedAt: sequence, relayedAt: sequence, body: Data(text.utf8))
     }
-}
-
-private func key(_ seed: UInt8) -> String {
-    let key = try! Curve25519.Signing.PrivateKey(rawRepresentation: Data(repeating: seed, count: 32))
-    let wire = Data([0, 0, 0, 11]) + Data("ssh-ed25519".utf8) + Data([0, 0, 0, 32]) + key.publicKey.rawRepresentation
-    return wire.base64EncodedString()
 }

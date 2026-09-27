@@ -1,4 +1,3 @@
-import CryptoKit
 import XCTest
 @testable import tlx
 
@@ -6,9 +5,9 @@ final class ConversationTests: XCTestCase {
     private var directory: URL!
     private var store: Store!
     private var storage: Storage!
-    private let me = key(1)
-    private let bob = key(2)
-    private let alice = key(3)
+    private let me = testPublicKey(1)
+    private let bob = testPublicKey(2)
+    private let alice = testPublicKey(3)
 
     override func setUpWithError() throws {
         directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
@@ -192,10 +191,4 @@ final class ConversationTests: XCTestCase {
     private func openStore() throws -> Store {
         try Store(ownPublicKey: me, uiPath: directory.appending(path: "ui.db"), syncPath: directory.appending(path: "sync.db"))
     }
-}
-
-private func key(_ seed: UInt8) -> String {
-    let key = try! Curve25519.Signing.PrivateKey(rawRepresentation: Data(repeating: seed, count: 32))
-    let wire = Data([0, 0, 0, 11]) + Data("ssh-ed25519".utf8) + Data([0, 0, 0, 32]) + key.publicKey.rawRepresentation
-    return wire.base64EncodedString()
 }
