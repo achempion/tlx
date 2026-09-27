@@ -25,7 +25,7 @@ struct ChatListView: View {
                 focusComposerOnOpen = false
                 openedChat = chat
             } label: {
-                row(chat)
+                ChatListRow(chat: chat, chats: chats, names: names, isSelected: openedChat?.id == chat.id)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -123,60 +123,5 @@ struct ChatListView: View {
         } catch {
             failure = error.localizedDescription
         }
-    }
-
-    private func row(_ chat: Chat) -> some View {
-            HStack(spacing: 12) {
-                avatar(chat)
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(alignment: .firstTextBaseline) {
-                        Text(names.chat(chat, among: chats))
-                            .fontWeight(chat.unread > 0 ? .semibold : .regular)
-                            .lineLimit(1)
-                        Spacer()
-                        Text(when(chat.lastClaimedAt))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .fixedSize(horizontal: true, vertical: false)
-                    }
-                    if chat.isGroup && !chat.lastSender.isEmpty && chat.draft.isEmpty {
-                        Text(names.of(chat.lastSender))
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                    HStack(alignment: .firstTextBaseline) {
-                        Text(summary(chat))
-                            .font(.subheadline)
-                            .foregroundStyle(chat.pending?.error != nil && chat.draft.isEmpty ? Color.red : .secondary)
-                            .lineLimit(1)
-                        Spacer()
-                        if chat.unread > 0 {
-                            Text("\(chat.unread)")
-                                .font(.caption.weight(.medium))
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 7)
-                                .padding(.vertical, 2)
-                                .background(.tint, in: Capsule())
-                        }
-                    }
-                }
-            }
-            .padding(.vertical, 2)
-    }
-
-    private func summary(_ chat: Chat) -> String {
-        if !chat.draft.isEmpty { return "Draft: " + chat.draft }
-        if chat.isDraft { return "Draft" }
-        if let pending = chat.pending {
-            let status = pending.error != nil ? "Failed to send" : (pending.sent ? "Sent" : "Sending…")
-            return status + " · " + preview(pending.body)
-        }
-        return preview(chat.lastBody)
-    }
-
-    private func avatar(_ chat: Chat) -> some View {
-        Avatar(key: chat.isTopic ? chat.id : (chat.participants.first ?? settings.identity.publicKey), chat: chat.id, topic: chat.isTopic)
     }
 }

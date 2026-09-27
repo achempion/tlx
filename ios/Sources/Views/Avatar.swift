@@ -49,6 +49,12 @@ struct Avatar: View {
     }
 }
 
+extension Avatar {
+    init(chat: Chat, me: String, size: CGFloat = 40) {
+        self.init(key: chat.isTopic ? chat.id : (chat.participants.first ?? me), chat: chat.id, topic: chat.isTopic, size: size)
+    }
+}
+
 func color(of key: String) -> Color {
     tone(hue(key), light: (0.6, 0.55), dark: (0.5, 0.85))
 }
