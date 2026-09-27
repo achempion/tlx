@@ -85,10 +85,13 @@ struct ChatView: View {
                     }
                     .scrollTargetLayout()
                     .padding(contentInsets)
+                    .frame(maxWidth: .infinity, minHeight: viewport.size.height, alignment: .bottom)
+                    .background {
+                        Color.clear.contentShape(Rectangle()).onTapGesture { clearTranscriptFocus() }
+                    }
                 }
                 .scrollPosition(id: $scrollID, anchor: .top)
-                .contentShape(Rectangle())
-                .simultaneousGesture(TapGesture().onEnded { composerFocused = false })
+                .scrollDismissesKeyboard(.interactively)
                 .defaultScrollAnchor(.bottom)
                 .onChange(of: session.messages.first?.sequence) {
                     if let paginationAnchor {
@@ -201,6 +204,7 @@ struct ChatView: View {
                         .padding(.vertical, 8)
                         .foregroundStyle(mine ? Color.white : .primary)
                         .background(mine ? Color.accentColor : bubble, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        .simultaneousGesture(TapGesture().onEnded { composerFocused = false })
                     if !footer.isEmpty {
                         Text(footer).font(.caption).foregroundStyle(entry.failed ? Color.red : .secondary)
                     }
@@ -211,6 +215,11 @@ struct ChatView: View {
                 }
             }
         }
+    }
+
+    private func clearTranscriptFocus() {
+        composerFocused = false
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 
     private func markViewed() {
