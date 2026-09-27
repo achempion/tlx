@@ -197,12 +197,9 @@ struct ChatView: View {
                                 .foregroundStyle(color(of: entry.sender))
                         }
                     }
-                    Text(entry.text)
-                        .lineSpacing(2)
-                        .textSelection(.enabled)
+                    SelectableMessageText(text: entry.text, mine: mine)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
-                        .foregroundStyle(mine ? Color.white : .primary)
                         .background(mine ? Color.accentColor : bubble, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                         .simultaneousGesture(TapGesture().onEnded { composerFocused = false })
                     if !footer.isEmpty {
@@ -258,6 +255,91 @@ func linkedMessageText(_ text: String) -> NSAttributedString {
         result.addAttributes([.link: url, .underlineStyle: NSUnderlineStyle.single.rawValue], range: match.range)
     }
     return result
+}
+
+struct SelectableMessageText: UIViewRepresentable {
+    let text: String
+    let mine: Bool
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.legibilityWeight) private var legibilityWeight
+
+    final class MessageTextView: UITextView {
+        override func resignFirstResponder() -> Bool {
+            let resigned = super.resignFirstResponder()
+            if resigned { selectedRange = NSRange(location: selectedRange.location, length: 0) }
+            return resigned
+        }
+    }
+
+    final class Coordinator: NSObject, UITextViewDelegate {
+        var text: String?
+        var mine: Bool?
+        var dynamicTypeSize: DynamicTypeSize?
+        var legibilityWeight: LegibilityWeight?
+
+        func textView(_ textView: UITextView, menuConfigurationFor textItem: UITextItem,
+                      defaultMenu: UIMenu) -> UITextItem.MenuConfiguration? {
+            UITextItem.MenuConfiguration(preview: nil, menu: defaultMenu)
+        }
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeUIView(context: Context) -> UITextView {
+        let view = MessageTextView()
+        view.isEditable = false
+        view.isSelectable = true
+        view.isScrollEnabled = false
+        view.dataDetectorTypes = []
+        view.backgroundColor = .clear
+        view.textContainerInset = .zero
+        view.textContainer.lineFragmentPadding = 0
+        view.adjustsFontForContentSizeCategory = true
+        view.delegate = context.coordinator
+        return view
+    }
+
+    func updateUIView(_ view: UITextView, context: Context) {
+        guard context.coordinator.text != text || context.coordinator.mine != mine ||
+              context.coordinator.dynamicTypeSize != dynamicTypeSize ||
+              context.coordinator.legibilityWeight != legibilityWeight else { return }
+        context.coordinator.text = text
+        context.coordinator.mine = mine
+        context.coordinator.dynamicTypeSize = dynamicTypeSize
+        context.coordinator.legibilityWeight = legibilityWeight
+
+        let content = NSMutableAttributedString(attributedString: linkedMessageText(text))
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineSpacing = 2
+        let traits = UITraitCollection(traitsFrom: [view.traitCollection,
+                                                   UITraitCollection(preferredContentSizeCategory: UIContentSizeCategory(dynamicTypeSize))])
+        let preferredFont = UIFont.preferredFont(forTextStyle: .body, compatibleWith: traits)
+        let font = legibilityWeight == .bold
+            ? UIFont(descriptor: preferredFont.fontDescriptor.withSymbolicTraits(.traitBold) ?? preferredFont.fontDescriptor,
+                     size: preferredFont.pointSize)
+            : preferredFont
+        content.addAttributes([
+            .font: font,
+            .foregroundColor: mine ? UIColor.white : UIColor.label,
+            .paragraphStyle: paragraph,
+        ], range: NSRange(location: 0, length: content.length))
+        view.linkTextAttributes = [
+            .foregroundColor: mine ? UIColor.white : UIColor.link,
+            .underlineStyle: NSUnderlineStyle.single.rawValue,
+        ]
+        view.tintColor = mine ? .black : nil
+        view.attributedText = content
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize? {
+        let maxWidth = max(1, min(proposal.width ?? maximumBubbleWidth, maximumBubbleWidth))
+        let bounds = uiView.attributedText.boundingRect(
+            with: CGSize(width: maxWidth, height: .greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil)
+        let width = min(maxWidth, max(1, ceil(bounds.width) + 1))
+        let height = uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude)).height
+        return CGSize(width: width, height: ceil(height))
+    }
 }
 
 private func shade(light: CGFloat, dark: CGFloat) -> Color {

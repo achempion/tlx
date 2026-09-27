@@ -1,3 +1,4 @@
+import SwiftUI
 import XCTest
 @testable import tlx
 
@@ -105,6 +106,71 @@ final class ChatSessionTests: XCTestCase {
         XCTAssertEqual(first.openingReadMarker, 0)
         XCTAssertNil(second.openingReadMarker)
         XCTAssertEqual(second.readMarker, 2)
+    }
+}
+
+final class MessageTextTests: XCTestCase {
+    @MainActor
+    func testMessageViewAllowsRangeSelectionAndOnlyExplicitLinks() throws {
+        let message = "Copy https://example.com"
+        let host = UIHostingController(rootView: SelectableMessageText(text: message, mine: false)
+            .environment(\.dynamicTypeSize, .medium).environment(\.legibilityWeight, .regular))
+        host.loadViewIfNeeded()
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 400, height: 100))
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        host.view.layoutIfNeeded()
+
+        func findTextView(in view: UIView) -> UITextView? {
+            if let textView = view as? UITextView { return textView }
+            return view.subviews.compactMap { findTextView(in: $0) }.first
+        }
+        let textView = try XCTUnwrap(findTextView(in: host.view))
+        XCTAssertTrue(textView.isSelectable)
+        XCTAssertFalse(textView.isEditable)
+        XCTAssertFalse(textView.isScrollEnabled)
+        XCTAssertEqual(textView.dataDetectorTypes, [])
+        XCTAssertNotNil(textView.delegate)
+        textView.selectedRange = NSRange(location: 0, length: 4)
+        XCTAssertEqual(textView.selectedRange, NSRange(location: 0, length: 4))
+        XCTAssertEqual(textView.selectedTextRange.flatMap(textView.text(in:)), "Copy")
+        XCTAssertEqual(textView.attributedText.attribute(.link, at: 5, effectiveRange: nil) as? URL,
+                       URL(string: "https://example.com"))
+        let size = host.sizeThatFits(in: CGSize(width: 400, height: 1_000))
+        XCTAssertGreaterThan(size.width, 20)
+        XCTAssertLessThan(size.width, 400)
+        XCTAssertGreaterThan(size.height, 10)
+
+        #if !targetEnvironment(macCatalyst)
+        let regularFont = try XCTUnwrap(textView.attributedText.attribute(.font, at: 0, effectiveRange: nil) as? UIFont)
+        #endif
+        host.rootView = SelectableMessageText(text: message, mine: false)
+            .environment(\.dynamicTypeSize, .medium).environment(\.legibilityWeight, .regular)
+        host.view.layoutIfNeeded()
+        XCTAssertEqual(textView.selectedRange, NSRange(location: 0, length: 4), "Redraw must keep the selection")
+
+        host.rootView = SelectableMessageText(text: message, mine: false)
+            .environment(\.dynamicTypeSize, .accessibility3).environment(\.legibilityWeight, .bold)
+        RunLoop.main.run(until: .now.addingTimeInterval(0.05))
+        host.view.layoutIfNeeded()
+        XCTAssertEqual((textView.delegate as? SelectableMessageText.Coordinator)?.dynamicTypeSize, .accessibility3)
+        let largerFont = try XCTUnwrap(textView.attributedText.attribute(.font, at: 0, effectiveRange: nil) as? UIFont)
+        #if !targetEnvironment(macCatalyst)
+        XCTAssertGreaterThan(largerFont.pointSize, regularFont.pointSize)
+        #endif
+        XCTAssertTrue(largerFont.fontDescriptor.symbolicTraits.contains(.traitBold))
+
+        host.rootView = SelectableMessageText(text: message, mine: true)
+            .environment(\.dynamicTypeSize, .medium).environment(\.legibilityWeight, .regular)
+        RunLoop.main.run(until: .now.addingTimeInterval(0.05))
+        host.view.layoutIfNeeded()
+        XCTAssertEqual(textView.tintColor, .black, "Sent bubbles need a selection tint that contrasts with blue")
+
+        XCTAssertTrue(textView.becomeFirstResponder())
+        textView.selectedRange = NSRange(location: 0, length: 4)
+        window.endEditing(true)
+        XCTAssertEqual(textView.selectedRange.length, 0, "Leaving a message clears its selection")
     }
 }
 
