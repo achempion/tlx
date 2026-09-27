@@ -49,16 +49,23 @@ Communicate with people you trust, away from the eyes of modern surveillance and
 
 ## How it works
 
-tlx is the smallest possible end-to-end encrypted messaging stack: a relay that
-stores what it can't read, and a daemon, `tlxd`, that syncs a local SQLite database with it.
+End-to-end encrypted messaging over an SSH mailbox.
 
-- **No new crypto.** SSH keys for identity, SSH for transport, [age](https://github.com/FiloSottile/age) for encryption,
-  SSH signatures for authorship.
-- **Small enough to audit.** The relay, sync daemon and Dockerfile together fit in under 500 lines.
-- **A server that knows little.** The relay sees encrypted blobs, who they are for and when.
-  Never content, never chats.
-- **Chats without a server.** A chat is just its signed member list; clients
-  derive it themselves.
+The relay is under 150 lines of Python. It stores encrypted blobs in mailboxes
+for SSH keys. Clients connect over SSH: `put` delivers a blob to recipient
+mailboxes; `get` fetches blobs from the caller's mailbox.
+
+Clients sign this text, append the signature, then encrypt both for the
+recipients with [age](https://github.com/FiloSottile/age):
+
+```text
+[topic]@<chat-id> <timestamp> <recipient-key>...
+<body>
+```
+
+The topic is optional and the chat ID is random. Clients discover members from
+signed headers and group messages by chat ID for convenience.
+Direct and group chats use the same mailbox protocol.
 
 ## Quickstart
 

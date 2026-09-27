@@ -34,8 +34,7 @@ Needs Xcode, [XcodeGen](https://github.com/yonaskolb/XcodeGen), Go and
 ### Your Apple identifiers
 
 Set your own app bundle ID and Apple Developer team ID before generating the
-project. XcodeGen writes them into the generated, ignored `.xcodeproj`; neither
-value is stored in the tracked project configuration.
+project. XcodeGen uses these values to generate `tlx.xcodeproj` for your Apple account.
 
 ```bash
 export TLX_BUNDLE_ID=com.example.tlx
@@ -49,10 +48,8 @@ Keep the variables set when running `make release` or `make mac-export`.
 Then pick an iPhone simulator or **My Mac (Mac Catalyst)** and press Run.
 
 For a Mac build distributed outside the App Store, run `make mac-export` from
-this directory and package `build/mac/export/tlx.app`. The Xcode export embeds
+this directory and package `build/mac/export/tlx.app`. This exported app includes
 the Developer ID provisioning profile required by the app's Keychain entitlement.
-Distribute only the Developer ID export, not an app from the archive or
-`DerivedData`.
 
 ## Code map
 
