@@ -113,7 +113,9 @@ final class MessageTextTests: XCTestCase {
     @MainActor
     func testMessageViewAllowsRangeSelectionAndOnlyExplicitLinks() throws {
         let message = "Copy https://example.com"
-        let host = UIHostingController(rootView: SelectableMessageText(text: message, mine: false)
+        let selectionRegistry = MessageSelectionRegistry()
+        let host = UIHostingController(rootView: SelectableMessageText(text: message, mine: false,
+                                                                     selectionRegistry: selectionRegistry)
             .environment(\.dynamicTypeSize, .medium).environment(\.legibilityWeight, .regular))
         host.loadViewIfNeeded()
         let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 400, height: 100))
@@ -145,12 +147,15 @@ final class MessageTextTests: XCTestCase {
         #if !targetEnvironment(macCatalyst)
         let regularFont = try XCTUnwrap(textView.attributedText.attribute(.font, at: 0, effectiveRange: nil) as? UIFont)
         #endif
-        host.rootView = SelectableMessageText(text: message, mine: false)
+        host.rootView = SelectableMessageText(text: message, mine: false, selectionRegistry: selectionRegistry)
             .environment(\.dynamicTypeSize, .medium).environment(\.legibilityWeight, .regular)
         host.view.layoutIfNeeded()
         XCTAssertEqual(textView.selectedRange, NSRange(location: 0, length: 4), "Redraw must keep the selection")
 
-        host.rootView = SelectableMessageText(text: message, mine: false)
+        selectionRegistry.clear()
+        XCTAssertEqual(textView.selectedRange.length, 0, "A blank-area tap clears the selected range")
+
+        host.rootView = SelectableMessageText(text: message, mine: false, selectionRegistry: selectionRegistry)
             .environment(\.dynamicTypeSize, .accessibility3).environment(\.legibilityWeight, .bold)
         RunLoop.main.run(until: .now.addingTimeInterval(0.05))
         host.view.layoutIfNeeded()
@@ -161,7 +166,7 @@ final class MessageTextTests: XCTestCase {
         #endif
         XCTAssertTrue(largerFont.fontDescriptor.symbolicTraits.contains(.traitBold))
 
-        host.rootView = SelectableMessageText(text: message, mine: true)
+        host.rootView = SelectableMessageText(text: message, mine: true, selectionRegistry: selectionRegistry)
             .environment(\.dynamicTypeSize, .medium).environment(\.legibilityWeight, .regular)
         RunLoop.main.run(until: .now.addingTimeInterval(0.05))
         host.view.layoutIfNeeded()

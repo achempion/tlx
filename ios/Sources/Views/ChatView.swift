@@ -24,6 +24,7 @@ struct ChatView: View {
     @State private var paginationAnchor: String?
     @State private var bottomScrollRequest = 0
     @State private var visibleBottomSequence: Int?
+    @State private var messageSelection = MessageSelectionRegistry()
     @Environment(\.scenePhase) private var scenePhase
     #if targetEnvironment(macCatalyst)
     @State private var composerFocused = false
@@ -197,7 +198,7 @@ struct ChatView: View {
                                 .foregroundStyle(color(of: entry.sender))
                         }
                     }
-                    SelectableMessageText(text: entry.text, mine: mine)
+                    SelectableMessageText(text: entry.text, mine: mine, selectionRegistry: messageSelection)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
                         .background(mine ? Color.accentColor : bubble, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
@@ -217,6 +218,7 @@ struct ChatView: View {
     private func clearTranscriptFocus() {
         composerFocused = false
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        messageSelection.clear()
     }
 
     private func markViewed() {
@@ -234,6 +236,28 @@ struct ChatView: View {
 
 private let messageLinkDetector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
 private let maximumLinkDetectionLength = 32_768
+
+final class MessageSelectionRegistry {
+    private weak var selectedView: UITextView?
+
+    func selectionChanged(in view: UITextView) {
+        if view.selectedRange.length > 0 {
+            selectedView = view
+        } else if selectedView === view {
+            selectedView = nil
+        }
+    }
+
+    func clear() {
+        guard let view = selectedView else { return }
+        selectedView = nil
+        view.selectedRange = NSRange(location: view.selectedRange.location, length: 0)
+    }
+
+    func remove(_ view: UITextView) {
+        if selectedView === view { selectedView = nil }
+    }
+}
 
 func linkedMessageText(_ text: String) -> NSAttributedString {
     let source = text as NSString
@@ -260,8 +284,15 @@ func linkedMessageText(_ text: String) -> NSAttributedString {
 struct SelectableMessageText: UIViewRepresentable {
     let text: String
     let mine: Bool
+    let selectionRegistry: MessageSelectionRegistry?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.legibilityWeight) private var legibilityWeight
+
+    init(text: String, mine: Bool, selectionRegistry: MessageSelectionRegistry? = nil) {
+        self.text = text
+        self.mine = mine
+        self.selectionRegistry = selectionRegistry
+    }
 
     final class MessageTextView: UITextView {
         override func resignFirstResponder() -> Bool {
@@ -276,6 +307,16 @@ struct SelectableMessageText: UIViewRepresentable {
         var mine: Bool?
         var dynamicTypeSize: DynamicTypeSize?
         var legibilityWeight: LegibilityWeight?
+        var measuredSizes: [(maxWidth: CGFloat, size: CGSize)] = []
+        var selectionRegistry: MessageSelectionRegistry?
+
+        init(selectionRegistry: MessageSelectionRegistry?) {
+            self.selectionRegistry = selectionRegistry
+        }
+
+        func textViewDidChangeSelection(_ textView: UITextView) {
+            selectionRegistry?.selectionChanged(in: textView)
+        }
 
         func textView(_ textView: UITextView, menuConfigurationFor textItem: UITextItem,
                       defaultMenu: UIMenu) -> UITextItem.MenuConfiguration? {
@@ -283,7 +324,7 @@ struct SelectableMessageText: UIViewRepresentable {
         }
     }
 
-    func makeCoordinator() -> Coordinator { Coordinator() }
+    func makeCoordinator() -> Coordinator { Coordinator(selectionRegistry: selectionRegistry) }
 
     func makeUIView(context: Context) -> UITextView {
         let view = MessageTextView()
@@ -300,6 +341,11 @@ struct SelectableMessageText: UIViewRepresentable {
     }
 
     func updateUIView(_ view: UITextView, context: Context) {
+        if context.coordinator.selectionRegistry !== selectionRegistry {
+            context.coordinator.selectionRegistry?.remove(view)
+            context.coordinator.selectionRegistry = selectionRegistry
+            selectionRegistry?.selectionChanged(in: view)
+        }
         guard context.coordinator.text != text || context.coordinator.mine != mine ||
               context.coordinator.dynamicTypeSize != dynamicTypeSize ||
               context.coordinator.legibilityWeight != legibilityWeight else { return }
@@ -307,6 +353,7 @@ struct SelectableMessageText: UIViewRepresentable {
         context.coordinator.mine = mine
         context.coordinator.dynamicTypeSize = dynamicTypeSize
         context.coordinator.legibilityWeight = legibilityWeight
+        context.coordinator.measuredSizes.removeAll()
 
         let content = NSMutableAttributedString(attributedString: linkedMessageText(text))
         let paragraph = NSMutableParagraphStyle()
@@ -331,14 +378,31 @@ struct SelectableMessageText: UIViewRepresentable {
         view.attributedText = content
     }
 
+    static func dismantleUIView(_ view: UITextView, coordinator: Coordinator) {
+        coordinator.selectionRegistry?.remove(view)
+        view.delegate = nil
+    }
+
     func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize? {
         let maxWidth = max(1, min(proposal.width ?? maximumBubbleWidth, maximumBubbleWidth))
+        let lineHeight = uiView.font?.lineHeight ?? UIFont.preferredFont(forTextStyle: .body).lineHeight
+        if maxWidth < lineHeight {
+            return CGSize(width: maxWidth, height: ceil(lineHeight))
+        }
+        if let cached = context.coordinator.measuredSizes.first(where: { $0.maxWidth == maxWidth }) {
+            return cached.size
+        }
         let bounds = uiView.attributedText.boundingRect(
             with: CGSize(width: maxWidth, height: .greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil)
         let width = min(maxWidth, max(1, ceil(bounds.width) + 1))
         let height = uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude)).height
-        return CGSize(width: width, height: ceil(height))
+        let size = CGSize(width: width, height: ceil(height))
+        if context.coordinator.measuredSizes.count == 4 {
+            context.coordinator.measuredSizes.removeFirst()
+        }
+        context.coordinator.measuredSizes.append((maxWidth, size))
+        return size
     }
 }
 
