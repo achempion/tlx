@@ -1,5 +1,7 @@
 import SwiftUI
 
+private let searchPrompt = "Name or fingerprint"
+
 struct ParticipantPicker: View {
     let topic: String?
     let names: Names
@@ -49,21 +51,31 @@ struct ParticipantPicker: View {
         }
         .navigationTitle(topic.map { "#" + $0 } ?? "New chat")
         .navigationBarTitleDisplayMode(.inline)
-        .searchable(text: $search, prompt: "Name or fingerprint")
+        #if targetEnvironment(macCatalyst)
+        .listStyle(.plain)
+        .safeAreaInset(edge: .top, spacing: 0) {
+            TextField(searchPrompt, text: $search)
+                .textFieldStyle(.roundedBorder)
+                .accessibilityLabel("Search contacts")
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+        }
+        #else
+        .searchable(text: $search, prompt: Text(searchPrompt))
+        #endif
         .toolbar {
+            #if !targetEnvironment(macCatalyst)
             ToolbarItem(placement: .cancellationAction) { Button("Cancel", action: onCancel) }
+            #endif
             ToolbarItem(placement: .confirmationAction) {
                 Button("Create", action: create).disabled(selected.isEmpty || store == nil)
             }
         }
-        .sheet(isPresented: $addingKey) {
-            NavigationStack {
-                AddPublicKeyView(me: names.me, selected: selected) { key in
-                    if !contacts.contains(key) { contacts.append(key) }
-                    selected.append(key)
-                }
-            }
-        }
+        #if targetEnvironment(macCatalyst)
+        .navigationDestination(isPresented: $addingKey) { keyEntry }
+        #else
+        .sheet(isPresented: $addingKey) { NavigationStack { keyEntry } }
+        #endif
         .task {
             do {
                 let store = try Store(ownPublicKey: names.me)
@@ -72,6 +84,13 @@ struct ParticipantPicker: View {
             } catch {
                 failure = error.localizedDescription
             }
+        }
+    }
+
+    private var keyEntry: some View {
+        AddPublicKeyView(me: names.me, selected: selected) { key in
+            if !contacts.contains(key) { contacts.append(key) }
+            selected.append(key)
         }
     }
 
@@ -137,7 +156,9 @@ private struct AddPublicKeyView: View {
         .navigationTitle("Add person")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            #if !targetEnvironment(macCatalyst)
             ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+            #endif
             ToolbarItem(placement: .confirmationAction) {
                 Button("Add", action: add).disabled(key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }

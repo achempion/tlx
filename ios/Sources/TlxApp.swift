@@ -37,22 +37,9 @@ struct TlxApp: App {
 
     var body: some Scene {
         WindowGroup {
-            if let settings {
-                NavigationStack {
-                    ChatListView(settings: settings, notifier: notifier)
-                        .navigationTitle("Chats")
-                        .toolbarTitleDisplayMode(.inlineLarge)
-                        .toolbar {
-                            ToolbarItem(placement: .topBarTrailing) {
-                                NavigationLink {
-                                    SettingsView(settings: $settings)
-                                } label: {
-                                    Label("Settings", systemImage: "gearshape")
-                                }
-                            }
-                        }
-                }
-                .id(settings.identity.publicKey)
+            if let settings = Binding($settings) {
+                ChatListView(settings: settings, notifier: notifier)
+                    .id(settings.wrappedValue.identity.publicKey)
             } else {
                 SettingsView(settings: $settings)
             }

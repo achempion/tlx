@@ -21,9 +21,7 @@ struct ChatDetailsView: View {
             }
             Section("Participants") {
                 ForEach(chat.participants + [names.me], id: \.self) { publicKey in
-                    NavigationLink {
-                        ProfileView(publicKey: publicKey, names: names)
-                    } label: {
+                    ChatDestination.profile(publicKey).link(chats: chats, names: names) {
                         HStack(spacing: 12) {
                             Avatar(key: publicKey, chat: chat.id)
                                 .accessibilityHidden(true)

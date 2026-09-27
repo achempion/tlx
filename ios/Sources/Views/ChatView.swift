@@ -1,8 +1,14 @@
 import SwiftUI
 
-private let groupWindow = 5 * 60 * 1_000_000_000
+private let groupingIntervalNanoseconds = 5 * 60 * 1_000_000_000
 private let canvas = shade(light: 1, dark: 0.08)
 private let bubble = shade(light: 0.93, dark: 0.17)
+private let maximumBubbleWidth: CGFloat = 520
+#if targetEnvironment(macCatalyst)
+private let contentInsets = EdgeInsets(top: 12, leading: 20, bottom: 16, trailing: 20)
+#else
+private let contentInsets = EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12)
+#endif
 
 struct ChatView: View {
     let chat: Chat
@@ -11,7 +17,6 @@ struct ChatView: View {
     var focusComposer = false
 
     private var title: String { names.chat(chat, among: chats) }
-    private var contactKey: String { chat.participants.first ?? names.me }
 
     @State private var store: Store?
     @State private var messages: [ChatMessage] = []
@@ -55,8 +60,7 @@ struct ChatView: View {
                         }
                 }
                 .scrollTargetLayout()
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
+                .padding(contentInsets)
             }
             .scrollPosition(id: $scrollID, anchor: .top)
             .contentShape(Rectangle())
@@ -80,42 +84,15 @@ struct ChatView: View {
         }
         .safeAreaInset(edge: .bottom) { composer }
         .background(canvas)
+        #if !targetEnvironment(macCatalyst)
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .onChange(of: scenePhase) { markViewed() }
         .onDisappear { bottomSequence = -1 }
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                NavigationLink {
-                    if chat.isGroup {
-                        ChatDetailsView(chat: chat, chats: chats, names: names)
-                    } else {
-                        ProfileView(publicKey: contactKey, names: names)
-                    }
-                } label: {
-                    VStack(spacing: 0) {
-                        Text(title).font(.headline).lineLimit(1)
-                        if chat.isGroup {
-                            Text(chat.isTopic ? names.people(chat) : "\(chat.participants.count + 1) participants")
-                                .font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                        }
-                    }
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(chat.isGroup ? "Chat details for \(title)" : "Profile for \(names.of(contactKey))")
-            }
-            if !chat.isGroup {
-                ToolbarItem(placement: .topBarTrailing) {
-                    NavigationLink {
-                        ProfileView(publicKey: contactKey, names: names)
-                    } label: {
-                        Avatar(key: contactKey, chat: chat.id, size: 32)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Profile for \(names.of(contactKey))")
-                }
-            }
-        }
+        #if !targetEnvironment(macCatalyst)
+        .toolbar { ChatToolbar(chat: chat, chats: chats, names: names) }
+        #endif
         .task {
             if store == nil {
                 do {
@@ -145,7 +122,10 @@ struct ChatView: View {
         }
     }
 
-    // --- rows ---
+    private func profileLink<Label: View>(_ key: String, @ViewBuilder label: () -> Label) -> some View {
+        ChatDestination.profile(key).link(chats: chats, names: names, label: label)
+            .buttonStyle(.plain).accessibilityLabel("Profile for \(names.of(key))")
+    }
 
     private struct Entry: Identifiable {
         let id: String
@@ -165,7 +145,7 @@ struct ChatView: View {
         let complete = !hasOlder || messages.contains { $0.sequence <= readMarker }
         func add(_ entry: Entry) {
             var entry = entry
-            entry.startsGroup = entries.last.map { $0.sender != entry.sender || !(0..<groupWindow).contains(entry.claimedAt - $0.claimedAt) } ?? true
+            entry.startsGroup = entries.last.map { $0.sender != entry.sender || !(0..<groupingIntervalNanoseconds).contains(entry.claimedAt - $0.claimedAt) } ?? true
             if entry.startsGroup, let last = entries.indices.last {
                 entries[last].endsGroup = true
             }
@@ -205,41 +185,33 @@ struct ChatView: View {
                 if mine {
                     Spacer(minLength: 48)
                 } else if chat.isGroup {
-                    NavigationLink {
-                        ProfileView(publicKey: entry.sender, names: names)
-                    } label: {
-                        Avatar(key: entry.sender, chat: chat.id, size: 32)
+                    if entry.startsGroup {
+                        profileLink(entry.sender) { Avatar(key: entry.sender, chat: chat.id, size: 32) }
+                    } else {
+                        Color.clear.frame(width: 32, height: 32)
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Profile for \(names.of(entry.sender))")
-                    .opacity(entry.startsGroup ? 1 : 0)
-                    .allowsHitTesting(entry.startsGroup)
-                    .accessibilityHidden(!entry.startsGroup)
                 }
                 VStack(alignment: mine ? .trailing : .leading, spacing: 3) {
                     if entry.startsGroup && chat.isGroup && !mine {
-                        NavigationLink {
-                            ProfileView(publicKey: entry.sender, names: names)
-                        } label: {
+                        profileLink(entry.sender) {
                             Text(names.of(entry.sender))
                                 .font(.subheadline.weight(.semibold))
                                 .italic(names.aliases[entry.sender] == nil)
                                 .foregroundStyle(color(of: entry.sender))
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Profile for \(names.of(entry.sender))")
                     }
                     Text(entry.text)
                         .lineSpacing(2)
                         .textSelection(.enabled)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
-                        .foregroundStyle(mine ? Color.accentColor : .primary)
-                        .background(mine ? Color.accentColor.opacity(0.18) : bubble, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        .foregroundStyle(mine ? Color.white : .primary)
+                        .background(mine ? Color.accentColor : bubble, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                     if !footer.isEmpty {
                         Text(footer).font(.caption).foregroundStyle(entry.failed ? Color.red : .secondary)
                     }
                 }
+                .frame(maxWidth: maximumBubbleWidth, alignment: mine ? .trailing : .leading)
                 if !mine {
                     Spacer(minLength: 48)
                 }
@@ -256,8 +228,8 @@ struct ChatView: View {
                 ChatComposerView(title: title, editor: editor, focused: $composerFocused, onSend: send)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.bottom, 8)
+        .padding(.horizontal, contentInsets.leading)
+        .padding(.bottom, contentInsets.bottom)
     }
 
     // --- store ---

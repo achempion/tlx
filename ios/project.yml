@@ -21,6 +21,7 @@ targets:
       DEVELOPMENT_TEAM: N3LZFHNRZJ
       CODE_SIGN_STYLE: Automatic
       TARGETED_DEVICE_FAMILY: "1,2"
+      "TARGETED_DEVICE_FAMILY[sdk=macosx*]": "6"
       "CODE_SIGN_ENTITLEMENTS[sdk=macosx*]": Mac.entitlements
     dependencies:
       - framework: Core.xcframework

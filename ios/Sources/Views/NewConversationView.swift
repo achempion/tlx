@@ -1,6 +1,6 @@
 import SwiftUI
 
-enum NewConversation: String, Identifiable {
+enum NewConversation: Identifiable {
     case chat, topic
     var id: Self { self }
 }
@@ -12,18 +12,18 @@ struct NewConversationView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationStack {
-            if mode == .topic {
-                TopicNameView(names: names, onCreate: finish, onCancel: { dismiss() })
-            } else {
-                ParticipantPicker(topic: nil, names: names, onCreate: finish, onCancel: { dismiss() })
-            }
+        if mode == .topic {
+            TopicNameView(names: names, onCreate: finish, onCancel: { dismiss() })
+        } else {
+            ParticipantPicker(topic: nil, names: names, onCreate: finish, onCancel: { dismiss() })
         }
     }
 
     private func finish(_ chat: Chat) {
         onCreate(chat)
+        #if !targetEnvironment(macCatalyst)
         dismiss()
+        #endif
     }
 }
 
@@ -58,7 +58,9 @@ private struct TopicNameView: View {
         .navigationTitle("New topic")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            #if !targetEnvironment(macCatalyst)
             ToolbarItem(placement: .cancellationAction) { Button("Cancel", action: onCancel) }
+            #endif
             ToolbarItem(placement: .confirmationAction) {
                 Button("Next", action: next).disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
