@@ -235,6 +235,31 @@ struct ChatView: View {
     }
 }
 
+private let messageLinkDetector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
+private let maximumLinkDetectionLength = 32_768
+
+func linkedMessageText(_ text: String) -> NSAttributedString {
+    let source = text as NSString
+    let result = NSMutableAttributedString(string: text)
+    guard source.length <= maximumLinkDetectionLength, let messageLinkDetector else {
+        return result
+    }
+
+    for match in messageLinkDetector.matches(in: text, range: NSRange(location: 0, length: source.length)) {
+        guard NSMaxRange(match.range) <= source.length else { continue }
+        let label = source.substring(with: match.range)
+        let lowercasedLabel = label.lowercased()
+        guard lowercasedLabel.hasPrefix("http://") || lowercasedLabel.hasPrefix("https://"),
+              let url = URL(string: label), let scheme = url.scheme?.lowercased(),
+              (scheme == "http" || scheme == "https"), url.host?.isEmpty == false else {
+            continue
+        }
+
+        result.addAttributes([.link: url, .underlineStyle: NSUnderlineStyle.single.rawValue], range: match.range)
+    }
+    return result
+}
+
 private func shade(light: CGFloat, dark: CGFloat) -> Color {
     Color(UIColor { UIColor(white: $0.userInterfaceStyle == .dark ? dark : light, alpha: 1) })
 }

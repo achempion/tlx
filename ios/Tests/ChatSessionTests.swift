@@ -108,6 +108,62 @@ final class ChatSessionTests: XCTestCase {
     }
 }
 
+final class MessageLinkTests: XCTestCase {
+    private func links(in text: NSAttributedString) -> [String] {
+        var links: [String] = []
+        text.enumerateAttribute(.link, in: NSRange(location: 0, length: text.length)) { value, range, _ in
+            guard let url = value as? URL else { return }
+            let label = (text.string as NSString).substring(with: range)
+            links.append("\(label) -> \(url.absoluteString)")
+        }
+        return links
+    }
+
+    func testExplicitWebLinksPreserveMessageText() {
+        let message = "Hi 🎉 https://example.com/path?x=1 and http://example.org."
+        let rendered = linkedMessageText(message)
+
+        XCTAssertEqual(rendered.string, message)
+        XCTAssertEqual(links(in: rendered), [
+            "https://example.com/path?x=1 -> https://example.com/path?x=1",
+            "http://example.org -> http://example.org",
+        ])
+    }
+
+    func testOtherSchemesAndImplicitAddressesStayPlain() {
+        let message = "javascript:alert(1) file:///tmp/private mailto:a@example.com www.example.com https://safe.example"
+        let rendered = linkedMessageText(message)
+
+        XCTAssertEqual(rendered.string, message)
+        XCTAssertEqual(links(in: rendered), ["https://safe.example -> https://safe.example"])
+    }
+
+    func testLinkBoundariesAndInvalidHosts() {
+        let cases: [(String, [String])] = [
+            ("HTTPS://EXAMPLE.COM", ["HTTPS://EXAMPLE.COM -> HTTPS://EXAMPLE.COM"]),
+            ("https:// and http:///path", []),
+            ("(https://example.com),", ["https://example.com -> https://example.com"]),
+            ("https://one.example)(https://two.example", [
+                "https://one.example -> https://one.example",
+                "https://two.example -> https://two.example",
+            ]),
+        ]
+        for (message, expected) in cases {
+            let rendered = linkedMessageText(message)
+            XCTAssertEqual(rendered.string, message)
+            XCTAssertEqual(links(in: rendered), expected, message)
+        }
+    }
+
+    func testOversizedMessageSkipsLinkDetection() {
+        let message = String(repeating: "x", count: 32_769) + " https://example.com"
+        let rendered = linkedMessageText(message)
+
+        XCTAssertEqual(rendered.string, message)
+        XCTAssertTrue(links(in: rendered).isEmpty)
+    }
+}
+
 private final class SessionFixture {
     let directory: URL
     let me = testPublicKey(1)
