@@ -47,7 +47,12 @@ struct TlxApp: App {
         .onChange(of: scenePhase, initial: true) { _, phase in
             switch phase {
             case .active: engine.activate(settings)
-            case .background: engine.linger()
+            case .background:
+                #if targetEnvironment(macCatalyst)
+                break
+                #else
+                engine.linger()
+                #endif
             default: break
             }
         }
