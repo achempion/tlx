@@ -26,7 +26,11 @@ struct ChatView: View {
     @State private var bottomSequence = -1
     @State private var openedUnread = false
     @Environment(\.scenePhase) private var scenePhase
+    #if targetEnvironment(macCatalyst)
+    @State private var composerFocused = false
+    #else
     @FocusState private var composerFocused: Bool
+    #endif
 
     var body: some View {
         GeometryReader { viewport in
@@ -55,6 +59,8 @@ struct ChatView: View {
                 .padding(.vertical, 8)
             }
             .scrollPosition(id: $scrollID, anchor: .top)
+            .contentShape(Rectangle())
+            .simultaneousGesture(TapGesture().onEnded { composerFocused = false })
             .defaultScrollAnchor(openedUnread || entries.contains(where: { $0.id == "new" }) ? nil : .bottom)
             .onChange(of: messages.first?.sequence) {
                 if let pageAnchor { self.pageAnchor = nil; Task { await Task.yield(); scrollID = pageAnchor } }
@@ -243,26 +249,11 @@ struct ChatView: View {
 
     private var composer: some View {
         VStack(spacing: 6) {
-            let error = editor?.failure.isEmpty == false ? editor?.failure ?? "" : failure
-            if !error.isEmpty {
-                Text(error).font(.footnote).foregroundStyle(.red)
+            if !failure.isEmpty {
+                Text(failure).font(.footnote).foregroundStyle(.red)
             }
-            HStack(alignment: .bottom, spacing: 8) {
-                TextField("Message \(title)", text: Binding(get: { editor?.text ?? "" }, set: { editor?.edit($0) }), axis: .vertical)
-                    .lineLimit(1...6)
-                    .focused($composerFocused)
-                    .disabled(editor == nil)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .modifier(Floating(shape: AnyShape(RoundedRectangle(cornerRadius: 22)), interactive: false))
-                Button(action: send) {
-                    Image(systemName: "arrow.up")
-                        .font(.body.weight(.semibold))
-                        .frame(width: 40, height: 40)
-                }
-                .accessibilityLabel("Send message")
-                .modifier(Floating(shape: AnyShape(Circle())))
-                .disabled(editor?.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false)
+            if let editor {
+                ChatComposerView(title: title, editor: editor, focused: $composerFocused, onSend: send)
             }
         }
         .padding(.horizontal, 12)
@@ -309,26 +300,4 @@ struct ChatView: View {
 
 private func shade(light: CGFloat, dark: CGFloat) -> Color {
     Color(UIColor { UIColor(white: $0.userInterfaceStyle == .dark ? dark : light, alpha: 1) })
-}
-
-private struct Floating: ViewModifier {
-    let shape: AnyShape
-    var interactive = true
-
-    func body(content: Content) -> some View {
-        if #available(iOS 26, *) {
-            if interactive {
-                content.glassEffect(.regular.interactive(), in: shape)
-            } else {
-                content.background {
-                    Color.clear.glassEffect(.regular, in: shape).allowsHitTesting(false)
-                }
-            }
-        } else {
-            let rim = LinearGradient(colors: [.white.opacity(0.35), .white.opacity(0.05)], startPoint: .top, endPoint: .bottom)
-            content
-                .background(.regularMaterial, in: shape)
-                .overlay(shape.stroke(rim, lineWidth: 0.5).allowsHitTesting(false))
-        }
-    }
 }
