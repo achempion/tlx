@@ -17,8 +17,32 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
     }
 
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
-        [.list]
+        #if targetEnvironment(macCatalyst)
+        // The chat may have been opened since notify posted this.
+        let chatId = notification.request.content.threadIdentifier
+        return await MainActor.run { announces(chatId) } ? [.banner, .list, .sound] : []
+        #else
+        return [.list]
+        #endif
     }
+}
+
+#if targetEnvironment(macCatalyst)
+/// The chat each view shows with its newest messages in the window the user is in.
+@MainActor private var chatsBeingRead: [ObjectIdentifier: String] = [:]
+
+@MainActor func setChatBeingRead(_ chatId: String?, by view: ObjectIdentifier) {
+    chatsBeingRead[view] = chatId
+}
+#endif
+
+/// A Mac window stays on screen behind other apps, so there only the chat being read stays quiet.
+@MainActor private func announces(_ chatId: String) -> Bool {
+    #if targetEnvironment(macCatalyst)
+    !chatsBeingRead.values.contains(chatId)
+    #else
+    UIApplication.shared.applicationState == .background
+    #endif
 }
 
 var notificationsEnabled: Bool {
@@ -42,9 +66,10 @@ func notificationsDenied() async -> Bool {
 }
 
 func notify(about saved: [Message], me: String) async {
-    guard !saved.isEmpty, notificationsEnabled,
-          await MainActor.run(body: { UIApplication.shared.applicationState == .background }),
-          let store = try? Store(ownPublicKey: me), let requests = try? announcements(for: saved, store: store) else {
+    guard !saved.isEmpty, notificationsEnabled else { return }
+    let unseen = await MainActor.run { saved.filter { announces($0.chatId) } }
+    guard !unseen.isEmpty, let store = try? Store(ownPublicKey: me),
+          let requests = try? announcements(for: unseen, store: store) else {
         return
     }
     log.info("announcing \(requests.count) of \(saved.count) new messages")

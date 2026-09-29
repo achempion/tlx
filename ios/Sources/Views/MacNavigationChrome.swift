@@ -47,6 +47,52 @@ struct MacSidebarConfiguration: UIViewControllerRepresentable {
     }
 }
 
+/// Whether the hosting window is the one the user is in. Its scene stays foreground-active behind other apps,
+/// while the active-appearance trait follows focus. The visible chat is registered as being read straight from the
+/// trait change, so notify never sees stale focus while SwiftUI catches up.
+struct MacWindowActivity: UIViewRepresentable {
+    let visibleChat: String?
+    let onChange: (Bool) -> Void
+
+    func makeUIView(context: Context) -> TraitView {
+        let view = TraitView()
+        view.isUserInteractionEnabled = false
+        view.registerForTraitChanges([UITraitActiveAppearance.self]) { (view: TraitView, _: UITraitCollection) in view.update() }
+        return view
+    }
+
+    func updateUIView(_ view: TraitView, context: Context) {
+        view.onChange = onChange
+        view.visibleChat = visibleChat
+    }
+
+    final class TraitView: UIView {
+        var onChange: ((Bool) -> Void)?
+        var visibleChat: String? {
+            didSet { update() }
+        }
+        private var reported: Bool?
+
+        deinit {
+            let id = ObjectIdentifier(self)
+            MainActor.assumeIsolated { setChatBeingRead(nil, by: id) }
+        }
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            update()
+        }
+
+        func update() {
+            let active = window != nil && traitCollection.activeAppearance == .active
+            setChatBeingRead(active ? visibleChat : nil, by: ObjectIdentifier(self))
+            guard active != reported else { return }
+            reported = active
+            DispatchQueue.main.async { [weak self] in self?.onChange?(active) }
+        }
+    }
+}
+
 struct MacWindowTitleHidden: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> Controller { Controller() }
     func updateUIViewController(_ controller: Controller, context: Context) {}

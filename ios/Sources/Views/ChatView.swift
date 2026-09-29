@@ -28,6 +28,7 @@ struct ChatView: View {
     @Environment(\.scenePhase) private var scenePhase
     #if targetEnvironment(macCatalyst)
     @State private var composerFocused = false
+    @State private var windowActive = false
     #else
     @FocusState private var composerFocused: Bool
     #endif
@@ -49,7 +50,10 @@ struct ChatView: View {
             .background(canvas)
             .onChange(of: scenePhase) { markViewed() }
             .onDisappear { visibleBottomSequence = nil }
-            #if !targetEnvironment(macCatalyst)
+            #if targetEnvironment(macCatalyst)
+            .background(MacWindowActivity(visibleChat: visibleBottomSequence == nil ? nil : chat.id) { windowActive = $0 })
+            .onChange(of: windowActive) { markViewed() }
+            #else
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ChatToolbar(chat: chat, chats: chats, names: names) }
@@ -222,6 +226,9 @@ struct ChatView: View {
     }
 
     private func markViewed() {
+        #if targetEnvironment(macCatalyst)
+        guard windowActive else { return }
+        #endif
         guard scenePhase == .active, let visibleBottomSequence, visibleBottomSequence > session.readMarker else { return }
         session.markRead(upTo: visibleBottomSequence)
         Task { await removeDeliveredNotifications(chatId: chat.id, upTo: session.readMarker) }
