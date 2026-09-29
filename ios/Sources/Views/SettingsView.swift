@@ -1,6 +1,14 @@
 import SwiftUI
 import UserNotifications
 
+#if targetEnvironment(macCatalyst)
+private let systemSettings = "System Settings"
+private let notificationSettingsURL = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension?id=\(Bundle.main.bundleIdentifier ?? "")")
+#else
+private let systemSettings = "iOS Settings"
+private let notificationSettingsURL = URL(string: UIApplication.openNotificationSettingsURLString)
+#endif
+
 struct SettingsView: View {
     @Binding var settings: Settings?
     @Environment(\.dismiss) private var dismiss
@@ -54,9 +62,9 @@ struct SettingsView: View {
             } footer: {
                 if denied {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Notifications for tlx are turned off in iOS Settings.")
-                        Button("Open iOS Settings") {
-                            if let url = URL(string: UIApplication.openNotificationSettingsURLString) {
+                        Text("Notifications for tlx are turned off in \(systemSettings).")
+                        Button("Open \(systemSettings)") {
+                            if let url = notificationSettingsURL {
                                 UIApplication.shared.open(url)
                             }
                         }
