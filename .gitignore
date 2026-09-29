@@ -1,6 +1,7 @@
 __pycache__/
 *.pyc
 .local/
+AGENTS.md
 ios/Core.xcframework/
 ios/tlx.xcodeproj/
 ios/build/
