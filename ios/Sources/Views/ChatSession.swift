@@ -44,6 +44,7 @@ final class ChatSession {
         }
     }
 
+    @discardableResult
     func loadOlder() -> Bool {
         guard hasOlder, let oldest = messages.first,
               let older = try? store.messages(chatId: chatId, before: oldest.sequence) else { return false }

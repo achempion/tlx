@@ -6,9 +6,12 @@ private let bubble = shade(light: 0.93, dark: 0.17)
 private let maximumBubbleWidth: CGFloat = 520
 #if targetEnvironment(macCatalyst)
 private let contentInsets = EdgeInsets(top: 12, leading: 20, bottom: 16, trailing: 20)
+private let chatOpensWithPush = false
 #else
 private let contentInsets = EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12)
+private let chatOpensWithPush = true
 #endif
+private let transcriptEnd = "end"
 
 struct ChatView: View {
     let chat: Chat
@@ -20,8 +23,7 @@ struct ChatView: View {
     private var title: String { names.chat(chat, among: chats) }
 
     @State private var didApplyInitialFocus = false
-    @State private var scrollID: String?
-    @State private var paginationAnchor: String?
+    @State private var isStickingToBottom = chatOpensWithPush
     @State private var bottomScrollRequest = 0
     @State private var visibleBottomSequence: Int?
     @State private var messageSelection = MessageSelectionRegistry()
@@ -75,34 +77,32 @@ struct ChatView: View {
                     VStack(spacing: 3) {
                         if session.hasOlder {
                             Color.clear.frame(height: 1)
-                                .onGeometryChange(for: Bool.self) { $0.frame(in: .global).maxY >= viewport.frame(in: .global).minY - 200 } action: {
-                                    if $0 { loadOlder() }
+                                .onGeometryChange(for: Bool.self) { $0.frame(in: .global).maxY >= viewport.frame(in: .global).minY } action: {
+                                    if $0 && !isStickingToBottom { session.loadOlder() }
                                 }
                         }
                         ForEach(entries) { entry in
                             row(entry).padding(.top, entry.startsGroup ? 10 : 0)
                         }
-                        Color.clear.frame(height: 1).id("bottom")
+                        Color.clear.frame(height: 1)
                             .onGeometryChange(for: Int?.self) { viewport.frame(in: .global).contains($0.frame(in: .global)) ? lastSequence : nil } action: {
                                 visibleBottomSequence = $0
                                 markViewed()
                             }
+                            .padding(.bottom, contentInsets.bottom)
+                            .id(transcriptEnd)
                     }
-                    .scrollTargetLayout()
-                    .padding(contentInsets)
+                    .padding(EdgeInsets(top: contentInsets.top, leading: contentInsets.leading, bottom: 0, trailing: contentInsets.trailing))
                     .frame(maxWidth: .infinity, minHeight: viewport.size.height, alignment: .bottom)
                     .background {
                         Color.clear.contentShape(Rectangle()).onTapGesture { clearTranscriptFocus() }
                     }
                 }
-                .scrollPosition(id: $scrollID, anchor: .top)
                 .scrollDismissesKeyboard(.interactively)
                 .defaultScrollAnchor(.bottom)
-                .onChange(of: session.messages.first?.sequence) {
-                    if let paginationAnchor {
-                        proxy.scrollTo(paginationAnchor, anchor: .top)
-                        self.paginationAnchor = nil
-                    }
+                .modifier(StickToBottom(isSticking: $isStickingToBottom) { proxy.scrollTo(transcriptEnd, anchor: .bottom) })
+                .onChange(of: session.messages.first?.sequence) { previousFirst, _ in
+                    if let previousFirst { proxy.scrollTo(Entry.messageID(previousFirst), anchor: .top) }
                 }
                 .overlay(alignment: .bottom) {
                     if visibleBottomSequence == nil && session.messages.contains(where: { $0.sequence > session.readMarker && $0.sender != names.me }) {
@@ -114,7 +114,7 @@ struct ChatView: View {
                     if after > before { bottomScrollRequest += 1 }
                 }
             }
-            .onChange(of: bottomScrollRequest) { withAnimation { proxy.scrollTo("bottom", anchor: .bottom) } }
+            .onChange(of: bottomScrollRequest) { withAnimation { proxy.scrollTo(transcriptEnd, anchor: .bottom) } }
         }
     }
 
@@ -133,6 +133,8 @@ struct ChatView: View {
         var failed = false
         var startsGroup = false
         var endsGroup = false
+
+        static func messageID(_ sequence: Int) -> String { "m\(sequence)" }
     }
 
     private var canShowUnreadDivider: Bool {
@@ -158,7 +160,7 @@ struct ChatView: View {
                 add(Entry(id: "new", sender: "", claimedAt: 0))
                 dividerAfter = nil
             }
-            add(Entry(id: "m\(message.sequence)", sender: message.sender, claimedAt: message.claimedAt,
+            add(Entry(id: Entry.messageID(message.sequence), sender: message.sender, claimedAt: message.claimedAt,
                       text: preview(message.body), time: when(message.claimedAt)))
         }
         for pending in session.pendings {
@@ -233,11 +235,31 @@ struct ChatView: View {
         session.markRead(upTo: visibleBottomSequence)
         Task { await removeDeliveredNotifications(chatId: chat.id, upTo: session.readMarker) }
     }
+}
 
-    private func loadOlder() {
-        guard let oldest = session.messages.first else { return }
-        let anchor = scrollID ?? "m\(oldest.sequence)"
-        if session.loadOlder() { paginationAnchor = anchor }
+private struct StickToBottom: ViewModifier {
+    @Binding var isSticking: Bool
+    let scrollToBottom: () -> Void
+
+    func body(content: Content) -> some View {
+        content.onScrollGeometryChange(for: ScrollGeometry.self) { $0 } action: { old, new in
+            guard isSticking, !new.isAtBottom else { return }
+            if new.layoutChanged(since: old) {
+                withTransaction(\.disablesAnimations, true, scrollToBottom)
+            } else if new.isInWindow {
+                isSticking = false
+            }
+        }
+    }
+}
+
+private extension ScrollGeometry {
+    var distanceToBottom: CGFloat { contentSize.height - containerSize.height - contentInsets.top - contentOffset.y }
+    var isAtBottom: Bool { distanceToBottom <= 0.5 }
+    var isInWindow: Bool { contentInsets.bottom > 0 }
+
+    func layoutChanged(since old: ScrollGeometry) -> Bool {
+        contentSize != old.contentSize || containerSize != old.containerSize || contentInsets != old.contentInsets
     }
 }
 
