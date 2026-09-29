@@ -1,7 +1,7 @@
 name: tlx
 options:
   deploymentTarget:
-    iOS: "17.0"
+    iOS: "18.0"
 settings:
   DEVELOPMENT_TEAM: ${TLX_TEAM_ID}
 packages:
